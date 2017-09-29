@@ -29,21 +29,25 @@ void DebugPrintAddress(unsigned __int64 addr) {
 	DebugPrint(buf);
 }
 
+bool shouldCap()
+{
+	return config.bSimpleMode == FALSE && (config.bLoadCapping || GetLoadingStatus() == FALSE);
+}
+
 microsecond_t Clock() {
-	static LARGE_INTEGER pf;
+	static LARGE_INTEGER frequency;
 	static bool firstTime = true;
 
 	if (firstTime) {
 		timeBeginPeriod(1);
-		QueryPerformanceFrequency(&pf);
+		QueryPerformanceFrequency(&frequency);
 		firstTime = false;
 	}
 
-	LARGE_INTEGER li;
-	QueryPerformanceCounter(&li);
+	LARGE_INTEGER time;
+	QueryPerformanceCounter(&time);
 
-	double m = (10e5 * (double)li.QuadPart / (double)pf.QuadPart);
-	return (microsecond_t)m;
+	return (microsecond_t)(10e5 * time.QuadPart / frequency.QuadPart);
 }
 
 static microsecond_t prevClock = 0;
@@ -132,6 +136,11 @@ float Controller(float avgDeltaTime, float avgWorkTime, float avgFPS, float avgW
 	return ControllerAdvanced(avgDeltaTime, avgWorkTime, avgFPS, avgWPS, v);
 }
 
+const char *NotString(bool value)
+{
+	return value ? " Is" : "Not";
+}
+
 void Tick() {
 	const int NUM_DELTAS = 30;
 	const int NUM_VIRTUAL_DELTAS = 20;
@@ -142,6 +151,7 @@ void Tick() {
 	float valueMin = config.fShadowDirDistanceMin;
 	float valueMax = config.fShadowDirDistanceMax;
 
+	static microsecond_t sleepTime;
 	static microsecond_t deltas[NUM_DELTAS] = { 0 };
 	static microsecond_t workTimes[NUM_VIRTUAL_DELTAS] = { 0 };
 	static bool freezeMode = false;
@@ -230,8 +240,10 @@ void Tick() {
 		if (config.bShowDiagnostics) {
 			const int BUF_LEN = 256;
 			char buf[BUF_LEN];
-			sprintf_s(buf, BUF_LEN, "V %.3f, CV %.2f, GR %d, FPS %.2f, WPS %.2f, S %.2f, FD %lld, FM %d, Pip %d, Pause %d, Load %d\n",
-				GetShadowDirDistance(), cv, GetGRQuality(), avgFPS, avgWPS, strain, fullFrameDelta, freezeMode, GetPipboyStatus(), GetGameUpdatePaused(), GetLoadingStatus());
+			//                         1    2        3        4          5              6        7      8    9    10   11     12 
+			sprintf_s(buf, BUF_LEN, "D%6d(%+4d), GR %1d, FPS %5.1f, WPS %5.1f, Strain %3.0f, FD %6lld, %8s, %7s, %5s, %4s, %6lldus\r",
+				// 1							2			3			4		5		6		7				8									9										 10											11								  12
+				(int)GetShadowDirDistance(), (int)cv, GetGRQuality(), avgFPS, avgWPS, strain, fullFrameDelta, freezeMode ? "Frozen" : "Changing", GetPipboyStatus() != 0 ? "Pip-Boy" : "", GetGameUpdatePaused() != 0 ? "Pause" : "", GetLoadingStatus() != 0 ? "Load" : "", sleepTime);
 			DebugPrint(buf);
 		}
 	}
@@ -239,22 +251,22 @@ void Tick() {
 	microsecond_t targetDelta = (microsecond_t)((usecInSec) / targetFPS);
 	static microsecond_t timeSlept = 0;
 	microsecond_t workDelta = Clock() - currFrameStartClock;
-	microsecond_t sleepTime = max(0, (targetDelta - workDelta));
 
 	// Cap frame rate and record sleep time but only in advanced mode
-	if (config.bSimpleMode == FALSE) {
-		if (config.bLoadCapping) {
+	if (shouldCap()) {
+		sleepTime = max(0, (targetDelta - workDelta));
+		if (sleepTime) {
 			Cap(sleepTime);
-		} else {
-			if (GetLoadingStatus() == FALSE) {
-				Cap(sleepTime);
-			}
 		}
+	}
+	else {
+		sleepTime = -1;
 	}
 
 	// Increment the frame counter
 	frames++;
 }
+
 
 void PrePresent() {
 }
