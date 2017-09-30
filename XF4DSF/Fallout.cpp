@@ -1,68 +1,95 @@
 #include "Fallout.h"
 
-static float* addr_fShadowDistance = 0;
-static float* addr_fShadowDirDistance = 0;
-static float* addr_fLookSensitivity = 0;
-static __int32* addr_iVolumetricQuality = 0;
-static __int32* addr_bPipboyStatus = 0;
-static __int32* addr_bGameUpdatePaused = 0;
-static __int32* addr_bIsLoading = 0;
+namespace {
+	const unsigned __int64 offset_fShadowDistance = 0x38e9778;
+	const unsigned __int64 offset_fShadowDirDistance = 0x674fd0c;
+//	const unsigned __int64 offset_fLookSensitivity = 0x37b8670;
+	const unsigned __int64 offset_iVolumetricQuality = 0x38e8258;
+	const unsigned __int64 offset_bPipboyStatus = 0x5af93b0;
+	const unsigned __int64 offset_bGameUpdatePaused = 0x5a85340;
+	const unsigned __int64 offset_bIsLoading = 0x5ada16c;
 
-HMODULE GetFalloutModuleHandle() {
-	return GetModuleHandleA(NULL);
+	HMODULE GetFalloutModuleHandle() {
+		return GetModuleHandleA(NULL);
+	}
+
+	unsigned __int64 GetFalloutBaseAddress() {
+		return (unsigned __int64)GetFalloutModuleHandle();
+	}
 }
 
-unsigned __int64 GetFalloutBaseAddress() {
-	return (unsigned __int64)GetFalloutModuleHandle();
+struct refTo
+{
+	unsigned __int64 address;
+
+	template <typename type>
+	operator type &() {
+		return *((type *)(address));
+	}
+};
+
+struct Fallout4Addresses
+{
+	Fo4Float &shadowDistance;
+	Fo4Float &shadowDirDistance;
+	Fo4Int &volumetricQuality;
+	const Fo4Int &pipboyStatus;
+	const Fo4Int &gamePause;
+	const Fo4Int &loadingStatus;
+
+	Fallout4Addresses(unsigned __int64 base) :
+		shadowDistance(refTo{ base + offset_fShadowDistance }),
+		shadowDirDistance(refTo{ base + offset_fShadowDirDistance }),
+		volumetricQuality(refTo{ base + offset_iVolumetricQuality }),
+		pipboyStatus(refTo{ base + offset_bPipboyStatus }),
+		gamePause(refTo{ base + offset_bGameUpdatePaused }),
+		loadingStatus(refTo{ base + offset_bIsLoading })
+	{}
+};
+
+Fallout4::Fallout4() : addresses(new Fallout4Addresses(GetFalloutBaseAddress())) {
 }
 
-void InitAddresses() {
-	unsigned __int64 base = GetFalloutBaseAddress();
-	addr_fShadowDistance = (float*)(base + offset_fShadowDistance);
-	addr_fShadowDirDistance = (float*)(base + offset_fShadowDirDistance);
-	addr_fLookSensitivity = (float*)(base + offset_fLookSensitivity);
-	addr_iVolumetricQuality = (__int32*)(base + offset_iVolumetricQuality);
-	addr_bPipboyStatus = (__int32*)(base + offset_bPipboyStatus);
-	addr_bGameUpdatePaused = (__int32*)(base + offset_bGameUpdatePaused);
-	addr_bIsLoading = (__int32*)(base + offset_bIsLoading);
+Fallout4::~Fallout4() {
+	delete addresses;
 }
 
-bool GetPipboyStatus() {
-	return (*addr_bPipboyStatus);
+
+bool Fallout4::isPipboyActive() const {
+	return addresses->pipboyStatus != 0;
 }
 
-bool GetGameUpdatePaused() {
-	return (*addr_bGameUpdatePaused);
+bool Fallout4::isGamePaused() const {
+	return addresses->gamePause != 0;
 }
 
-void SetShadowDistance(float newValue) {
-	(*addr_fShadowDistance) = newValue;
+void Fallout4::setShadowDistance(float shadowDistance) {
+	addresses->shadowDistance = shadowDistance;
 }
 
-float GetShadowDistance() {
-	return *addr_fShadowDistance;
+float Fallout4::getShadowDistance() const {
+	return addresses->shadowDistance;
 }
 
-void SetShadowDirDistance(float newValue) {
-	(*addr_fShadowDirDistance) = newValue;
+void Fallout4::setShadowDirDistance(float shadowDirDistance) {
+	addresses->shadowDirDistance = shadowDirDistance;
 }
 
-float GetShadowDirDistance() {
-	return *addr_fShadowDirDistance;
+float Fallout4::getShadowDirDistance() const {
+	return addresses->shadowDirDistance;
 }
 
-void SetLookSensitivity(float newValue) {
-	(*addr_fLookSensitivity) = newValue;
+void Fallout4::setVolumetricQuality(int volumetricQuality) {
+	addresses->volumetricQuality = volumetricQuality;
 }
 
-void SetGRQuality(int newValue) {
-	(*addr_iVolumetricQuality) = newValue;
+int Fallout4::getVolumetricQuality() const {
+	return addresses->volumetricQuality;
 }
 
-int GetGRQuality() {
-	return (*addr_iVolumetricQuality);
+bool Fallout4::isGameLoading() const {
+	return addresses->loadingStatus && addresses->gamePause;
 }
 
-int	GetLoadingStatus() {
-	return (*addr_bIsLoading) && (*addr_bGameUpdatePaused);
-}
+
+Fallout4 *fallout4;
