@@ -34,7 +34,7 @@ bool shouldCap()
 	return config.bSimpleMode == FALSE && (config.bLoadCapping || GetLoadingStatus() == FALSE);
 }
 
-microsecond_t Clock() {
+microsecond_t CurrentMicrosecond() {
 	static LARGE_INTEGER frequency;
 	static bool firstTime = true;
 
@@ -57,20 +57,20 @@ static microsecond_t prevFrameStartClock = 0;
 static microsecond_t fullFrameDelta = 0;
 static unsigned __int64 frames = 0;
 
-void Block(microsecond_t x) {
-	microsecond_t t = Clock();
-	while ((Clock() - t) < x) {}
+void SpinWait(microsecond_t x) {
+	microsecond_t t = CurrentMicrosecond();
+	while ((CurrentMicrosecond() - t) < x) {}
 }
 
-void Cap(microsecond_t time) {
+void MicroSleep(microsecond_t time) {
 	microsecond_t bias = 500;
 	millisecond_t sleepTimeInt = (millisecond_t)((time-bias) / 1000);
 	sleepTimeInt = max(0, sleepTimeInt);
 #ifdef PRECISE_CAP
-	microsecond_t timeSlept = Clock();
+	microsecond_t timeSlept = CurrentMicrosecond();
 	Sleep((DWORD)sleepTimeInt);
-	timeSlept = Clock() - timeSlept;
-	Block(max(0, time - timeSlept));
+	timeSlept = CurrentMicrosecond() - timeSlept;
+	SpinWait(max(0, time - timeSlept));
 #else
 	Sleep((DWORD)sleepTimeInt);
 #endif
@@ -91,54 +91,39 @@ void ConfigAdjust() {
 float ControllerSimple(float avgDeltaTime, float avgWorkTime, float avgFPS, float avgWPS, float v) {
 	// Round the FPS to nearest integer
 	float roundedFPS = roundf(avgFPS);
-	float cv = 0.0f;
-	
-	if (roundedFPS >= config.fTargetFPS) {
-		cv = config.fIncreaseRate;
-	}
-
-	if (roundedFPS < config.fTargetFPS) {
-		cv = -config.fDecreaseRate;
-	}
 
 	if (roundedFPS < config.fEmergencyDropFPS) {
-		cv = -config.fEmergencyDropRate;
+		return -config.fEmergencyDropRate;
 	}
 
-	return cv;
+	return roundedFPS < config.fTargetFPS ? config.fDecreaseRate : config.fIncreaseRate;
 }
 
-float ControllerAdvanced(float avgDeltaTime, float avgWorkTime, float avgFPS, float avgWPS,  float v) {
+float ControllerAdvanced(float avgFrameTime, float avgWorkTime, float avgFPS, float avgWPS,  float currentShadowDistance) {
 	// Round the FPS to nearest integer
 	float roundedFPS = roundf(avgFPS);
-	float cv = 0.0f;
-	float strain = min(100.0f, 100.0f * (float)avgWorkTime / (float)avgDeltaTime);
+	float strain = min(100.0f, 100.0f * (float)avgWorkTime / (float)avgFrameTime);
+
+	if (roundedFPS < config.fEmergencyDropFPS) {
+		return -config.fEmergencyDropRate;
+	}
 
 	if (roundedFPS >= config.fTargetFPS && strain <= config.fIncreaseStrain) {
-		cv = config.fIncreaseRate;
+		return config.fIncreaseRate;
 	}
 
 	if (roundedFPS < config.fTargetFPS || strain >= config.fDecreaseStrain) {
-		cv = -config.fDecreaseRate;
+		return -config.fDecreaseRate;
 	}
 
-	if (roundedFPS < config.fEmergencyDropFPS) {
-		cv = -config.fEmergencyDropRate;
-	}
-
-	return cv;
+	return 0;
 }
 
-float Controller(float avgDeltaTime, float avgWorkTime, float avgFPS, float avgWPS, float v) {
+float Controller(float avgFrameTime, float avgWorkTime, float avgFPS, float avgWPS, float currentShadowDistance) {
 	if (config.bSimpleMode) {
-		return ControllerSimple(avgDeltaTime, avgWorkTime, avgFPS, avgWPS, v);
+		return ControllerSimple(avgFrameTime, avgWorkTime, avgFPS, avgWPS, currentShadowDistance);
 	}
-	return ControllerAdvanced(avgDeltaTime, avgWorkTime, avgFPS, avgWPS, v);
-}
-
-const char *NotString(bool value)
-{
-	return value ? " Is" : "Not";
+	return ControllerAdvanced(avgFrameTime, avgWorkTime, avgFPS, avgWPS, currentShadowDistance);
 }
 
 void Tick() {
@@ -156,17 +141,17 @@ void Tick() {
 	static microsecond_t workTimes[NUM_VIRTUAL_DELTAS] = { 0 };
 	static bool freezeMode = false;
 
-	// Measure the time between execution of Clock() again here
+	// Measure the time between execution of CurrentMicrosecond() again here
 	prevClock = currClock;
-	currClock = Clock();
+	currClock = CurrentMicrosecond();
 
 	microsecond_t workTime = max(0, currClock - currFrameStartClock);
 	deltas[frames%NUM_DELTAS] = fullFrameDelta;
 	workTimes[frames%NUM_VIRTUAL_DELTAS] = workTime;
 
-	float avgDelta = 0.0f;
+	float avgFrameTime = 0.0f;
 	for (int i = 0; i < NUM_DELTAS; ++i) {
-		avgDelta += (float)deltas[i];
+		avgFrameTime += (float)deltas[i];
 	}
 
 	float avgWorkTime = 0.0f;
@@ -174,18 +159,18 @@ void Tick() {
 		avgWorkTime += (float)workTimes[i];
 	}
 
-	avgDelta /= (float)NUM_DELTAS;
+	avgFrameTime /= (float)NUM_DELTAS;
 	avgWorkTime /= (float)NUM_VIRTUAL_DELTAS;
-	float strain = min(100.0f, 100.0f * (float)avgWorkTime / (float)avgDelta);
-	float avgFPS = usecInSec / (float)avgDelta;
+	float strain = min(100.0f, 100.0f * (float)avgWorkTime / (float)avgFrameTime);
+	float avgFPS = usecInSec / (float)avgFrameTime;
 	float avgWPS = usecInSec / (float)avgWorkTime;
 
 	if (frames % CONTROLLER_UPDATE_INTERVAL == 0) {
-		ConfigAdjust();
+		//ConfigAdjust();
 
 		// Main variables
-		float v = max(valueMin, GetShadowDirDistance());
-		float cv = 0.0f;
+		float currentShadowDistance = max(valueMin, GetShadowDirDistance());
+		float shadowDistanceDelta = 0.0f;
 
 		// Determine whether or not we should run the controller
 		bool runController = true;
@@ -198,36 +183,36 @@ void Tick() {
 
 		// Run the controller		
 		if (runController) {
-			cv = Controller(avgDelta, avgWorkTime, avgFPS, avgWPS, v);
+			shadowDistanceDelta = Controller(avgFrameTime, avgWorkTime, avgFPS, avgWPS, currentShadowDistance);
 
 			// Output smoothing via 5-frame moving average
 			static const int SMOOTHED_LEN = 5;
-			static int k = 0;
+			static int shadowSampleIdx = 0;
 			static float smoothedSum = 0.0f;
 			static float samples[SMOOTHED_LEN] = { 0.0f };
-			samples[k%SMOOTHED_LEN] = cv;
-			smoothedSum += cv;
-			smoothedSum -= samples[(k + SMOOTHED_LEN + 1) % SMOOTHED_LEN];
-			k++;
-			cv = ((smoothedSum) / (float)(SMOOTHED_LEN - 1));
+			samples[shadowSampleIdx%SMOOTHED_LEN] = shadowDistanceDelta;
+			smoothedSum += shadowDistanceDelta;
+			smoothedSum -= samples[(shadowSampleIdx + SMOOTHED_LEN + 1) % SMOOTHED_LEN];
+			shadowSampleIdx++;
+			shadowDistanceDelta = ((smoothedSum) / (float)(SMOOTHED_LEN - 1));
 
 			// Apply the control variable
-			v = v + cv;
-			v = max(v, valueMin);
-			v = min(v, valueMax);
+			currentShadowDistance = currentShadowDistance + shadowDistanceDelta;
+			currentShadowDistance = max(currentShadowDistance, valueMin);
+			currentShadowDistance = min(currentShadowDistance, valueMax);
 
 			// Do the modification of shadows
-			SetShadowDirDistance(v);
-			SetShadowDistance(v);
+			SetShadowDirDistance(currentShadowDistance);
+			SetShadowDistance(currentShadowDistance);
 
 			// Adjust volumetric lighting quality 
-			if (config.bAdjustGRQuality != FALSE) {
+			if (config.bAdjustGRQuality) {
 				int grQuality = 0;
-				if (v > config.fGRQualityShadowDist1)
+				if (currentShadowDistance > config.fGRQualityShadowDist1)
 					grQuality = 1;
-				if (v > config.fGRQualityShadowDist2)
+				if (currentShadowDistance > config.fGRQualityShadowDist2)
 					grQuality = 2;
-				if (v > config.fGRQualityShadowDist3)
+				if (currentShadowDistance > config.fGRQualityShadowDist3)
 					grQuality = 3;
 
 				grQuality = max(grQuality, config.iGRQualityMin);
@@ -240,23 +225,23 @@ void Tick() {
 		if (config.bShowDiagnostics) {
 			const int BUF_LEN = 256;
 			char buf[BUF_LEN];
-			//                         1    2        3        4          5              6        7      8    9    10   11     12 
-			sprintf_s(buf, BUF_LEN, "D%6d(%+4d), GR %1d, FPS %5.1f, WPS %5.1f, Strain %3.0f, FD %6lld, %8s, %7s, %5s, %4s, %6lldus\r",
-				// 1							2			3			4		5		6		7				8									9										 10											11								  12
-				(int)GetShadowDirDistance(), (int)cv, GetGRQuality(), avgFPS, avgWPS, strain, fullFrameDelta, freezeMode ? "Frozen" : "Changing", GetPipboyStatus() != 0 ? "Pip-Boy" : "", GetGameUpdatePaused() != 0 ? "Pause" : "", GetLoadingStatus() != 0 ? "Load" : "", sleepTime);
+			//                         1    2        3     4    5        6     7    8   9  10   
+			sprintf_s(buf, BUF_LEN, "\rD%6d(%+4d) GR%1d %5.1f/%5.1f = %3.0f%%, %8s %7s %5s %4s.  ",
+				// 1							   2			      	3			   4		5		6		7				8									9										 10											11
+				(int)currentShadowDistance, (int)shadowDistanceDelta, GetGRQuality(), avgWPS, avgFPS, strain, freezeMode ? "Frozen" : "Changing", GetPipboyStatus() != 0 ? "Pip-Boy" : "", GetGameUpdatePaused() != 0 ? "Pause" : "", GetLoadingStatus() != 0 ? "Load" : "");
 			DebugPrint(buf);
 		}
 	}
 
-	microsecond_t targetDelta = (microsecond_t)((usecInSec) / targetFPS);
+	const microsecond_t targetDelta = (microsecond_t)((usecInSec) / targetFPS);
 	static microsecond_t timeSlept = 0;
-	microsecond_t workDelta = Clock() - currFrameStartClock;
 
 	// Cap frame rate and record sleep time but only in advanced mode
 	if (shouldCap()) {
-		sleepTime = max(0, (targetDelta - workDelta));
+		const microsecond_t actualDelta = CurrentMicrosecond() - currFrameStartClock;
+		sleepTime = max(0, targetDelta - actualDelta);
 		if (sleepTime) {
-			Cap(sleepTime);
+			MicroSleep(sleepTime);
 		}
 	}
 	else {
@@ -268,14 +253,14 @@ void Tick() {
 }
 
 
-void PrePresent() {
+void PrePresent() { 
 }
 
 void PostPresent() {
 	Tick();
 	// We run after Present, so we'll treat this as the frame start
 	prevFrameStartClock = currFrameStartClock;
-	currFrameStartClock = Clock();
+	currFrameStartClock = CurrentMicrosecond();
 	fullFrameDelta = currFrameStartClock - prevFrameStartClock;
 }
 
