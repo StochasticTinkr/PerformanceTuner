@@ -2,27 +2,31 @@
 #define __FALLOUT_H__
 
 #include "Includes.h"
+typedef __int32 Fo4Int;
+typedef float Fo4Float;
 
-const unsigned __int64 offset_fShadowDistance = 0x38e9778;
-const unsigned __int64 offset_fShadowDirDistance = 0x674fd0c;
-const unsigned __int64 offset_fLookSensitivity = 0x37b8670;
-const unsigned __int64 offset_iVolumetricQuality = 0x38e8258;
-const unsigned __int64 offset_bPipboyStatus = 0x5af93b0;
-const unsigned __int64 offset_bGameUpdatePaused = 0x5a85340;
-const unsigned __int64 offset_bIsLoading = 0x5ada16c;
+struct Fallout4Addresses;
 
-void	InitAddresses();
-HMODULE GetFalloutModuleHandle();
+class Fallout4 {
+private:
+	Fallout4Addresses *addresses;
+public:
+	Fallout4();
+	~Fallout4();
 
-bool	GetPipboyStatus();
-bool	GetGameUpdatePaused();
-float	GetShadowDistance();
-float	GetShadowDirDistance();
-int		GetGRQuality();
-int		GetLoadingStatus();
+	float getShadowDistance() const;
+	void setShadowDistance(float shadowDistance);
+	float getShadowDirDistance() const;
+	void setShadowDirDistance(float shadowDistance);
+	
+	int getVolumetricQuality() const;
+	void setVolumetricQuality(int volumetricQuality);
 
-void	SetShadowDirDistance(float newValue);
-void	SetShadowDistance(float newValue);
-void	SetGRQuality(int newValue);
+	bool isPipboyActive() const;
+	bool isGamePaused() const;
+	bool isGameLoading() const;
+};
+
+extern Fallout4 *fallout4;
 
 #endif // __FALLOUT_H__

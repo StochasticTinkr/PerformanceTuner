@@ -38,14 +38,18 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
 
 		InitConfig(&config);
 		LoadConfig(CONFIG_FILE, &config);
-		InitAddresses();
+		fallout4 = new Fallout4();
+
 		if (config.bShowDiagnostics) {
 			DebugPrint("xwize's Dynamic Performance Tuner is running.\n");
 			DebugPrintConfig();
 		}
 	}
-	if (reason == DLL_PROCESS_DETACH)
+	if (reason == DLL_PROCESS_DETACH) {
 		FreeLibrary(hL);
+		delete fallout4;
+		fallout4 = 0;
+	}
 	return TRUE;
 }
 

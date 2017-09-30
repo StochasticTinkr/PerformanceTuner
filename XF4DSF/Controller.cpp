@@ -29,9 +29,8 @@ void DebugPrintAddress(unsigned __int64 addr) {
 	DebugPrint(buf);
 }
 
-bool shouldCap()
-{
-	return config.bSimpleMode == FALSE && (config.bLoadCapping || GetLoadingStatus() == FALSE);
+bool shouldCap() {
+	return !config.bSimpleMode && (config.bLoadCapping || !fallout4->isGameLoading());
 }
 
 microsecond_t CurrentMicrosecond() {
@@ -169,15 +168,15 @@ void Tick() {
 		//ConfigAdjust();
 
 		// Main variables
-		float currentShadowDistance = max(valueMin, GetShadowDirDistance());
+		float currentShadowDistance = max(valueMin, fallout4->getShadowDirDistance());
 		float shadowDistanceDelta = 0.0f;
 
 		// Determine whether or not we should run the controller
 		bool runController = true;
-		if (config.bCheckPaused && GetGameUpdatePaused()) {
+		if (config.bCheckPaused && fallout4->isGamePaused()) {
 			runController = false;
 		}
-		if (config.bCheckPipboy && GetPipboyStatus()) {
+		if (config.bCheckPipboy && fallout4->isPipboyActive()) {
 			runController = false;
 		}
 
@@ -202,8 +201,8 @@ void Tick() {
 			currentShadowDistance = min(currentShadowDistance, valueMax);
 
 			// Do the modification of shadows
-			SetShadowDirDistance(currentShadowDistance);
-			SetShadowDistance(currentShadowDistance);
+			fallout4->setShadowDirDistance(currentShadowDistance);
+			fallout4->setShadowDistance(currentShadowDistance);
 
 			// Adjust volumetric lighting quality 
 			if (config.bAdjustGRQuality) {
@@ -217,7 +216,7 @@ void Tick() {
 
 				grQuality = max(grQuality, config.iGRQualityMin);
 				grQuality = min(grQuality, config.iGRQualityMax);
-				SetGRQuality(grQuality);
+				fallout4->setVolumetricQuality(grQuality);
 			}
 		}
 
@@ -228,7 +227,7 @@ void Tick() {
 			//                         1    2        3     4    5        6     7    8   9  10   
 			sprintf_s(buf, BUF_LEN, "\rD%6d(%+4d) GR%1d %5.1f/%5.1f = %3.0f%%, %8s %7s %5s %4s.  ",
 				// 1							   2			      	3			   4		5		6		7				8									9										 10											11
-				(int)currentShadowDistance, (int)shadowDistanceDelta, GetGRQuality(), avgWPS, avgFPS, strain, freezeMode ? "Frozen" : "Changing", GetPipboyStatus() != 0 ? "Pip-Boy" : "", GetGameUpdatePaused() != 0 ? "Pause" : "", GetLoadingStatus() != 0 ? "Load" : "");
+				(int)currentShadowDistance, (int)shadowDistanceDelta, fallout4->getVolumetricQuality(), avgWPS, avgFPS, strain, freezeMode ? "Frozen" : "Changing", fallout4->isPipboyActive() != 0 ? "Pip-Boy" : "", fallout4->isGamePaused() != 0 ? "Pause" : "", fallout4->isGameLoading() != 0 ? "Load" : "");
 			DebugPrint(buf);
 		}
 	}
