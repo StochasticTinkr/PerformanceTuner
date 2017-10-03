@@ -1,3 +1,4 @@
+#include "Includes.h"
 #include "Fallout.h"
 
 namespace {
@@ -47,11 +48,10 @@ struct Fallout4Addresses
 	{}
 };
 
-Fallout4::Fallout4() : addresses(new Fallout4Addresses(GetFalloutBaseAddress())) {
+Fallout4::Fallout4() : addresses(std::make_unique<Fallout4Addresses>(GetFalloutBaseAddress())) {
 }
 
 Fallout4::~Fallout4() {
-	delete addresses;
 }
 
 
@@ -90,6 +90,3 @@ int Fallout4::getVolumetricQuality() const {
 bool Fallout4::isGameLoading() const {
 	return addresses->loadingStatus && addresses->gamePause;
 }
-
-
-Fallout4 *fallout4;

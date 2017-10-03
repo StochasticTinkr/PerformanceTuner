@@ -1,7 +1,8 @@
 #ifndef __FALLOUT_H__
 #define __FALLOUT_H__
 
-#include "Includes.h"
+#include <memory>
+
 typedef __int32 Fo4Int;
 typedef float Fo4Float;
 
@@ -9,7 +10,8 @@ struct Fallout4Addresses;
 
 class Fallout4 {
 private:
-	Fallout4Addresses *addresses;
+	std::unique_ptr<Fallout4Addresses> addresses;
+
 public:
 	Fallout4();
 	~Fallout4();
@@ -26,7 +28,5 @@ public:
 	bool isGamePaused() const;
 	bool isGameLoading() const;
 };
-
-extern Fallout4 *fallout4;
 
 #endif // __FALLOUT_H__
