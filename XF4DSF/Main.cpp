@@ -2,8 +2,8 @@
 #include <Psapi.h>
 
 #include "Includes.h"
-#include "Fallout.h"
 #include "Controller.h"
+#include "Console.h"
 
 #pragma pack(1)
 
@@ -12,6 +12,8 @@
 #define DXGI_LINKED_DLL "dxgi_linked.dll"
 
 FARPROC p[9] = { 0 };
+
+std::unique_ptr<Controller> controller;
 
 extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
 	static HINSTANCE hL;
@@ -35,20 +37,12 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
 
 		// Install the linked hooks if there
 		LoadLibrary(_T(DXGI_LINKED_DLL));
-
-		InitConfig(&config);
-		LoadConfig(CONFIG_FILE, &config);
-		fallout4 = new Fallout4();
-
-		if (config.bShowDiagnostics) {
-			DebugPrint("xwize's Dynamic Performance Tuner is running.\n");
-			DebugPrintConfig();
-		}
+		console.print("xwize's Dynamic Performance Tuner is running, with Stochastic Tinker's modifications.");
+		controller = std::make_unique<Controller>(CONFIG_FILE);
 	}
 	if (reason == DLL_PROCESS_DETACH) {
 		FreeLibrary(hL);
-		delete fallout4;
-		fallout4 = 0;
+		controller.release();
 	}
 	return TRUE;
 }
@@ -64,9 +58,8 @@ PresentPtr Present_original;
 
 HRESULT __stdcall Hooked_IDXGISwapChain_Present(IDXGISwapChain* pThis, UINT a, UINT b) {
 	//MessageBox(NULL, _T("Hooked_IDXGISwapChain_Present"), _T("dxgi.dll"), NULL);
-	PrePresent();
 	HRESULT hr = Present_original(pThis, a, b);
-	PostPresent();
+	controller->tick();
 	return hr;
 }
 
