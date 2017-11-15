@@ -1,5 +1,5 @@
 #include <memory>
-#include <strstream>
+#include <sstream>
 #include <string>
 
 #include "Includes.h"
@@ -7,7 +7,7 @@
 #include "Console.h"
 #include "Fallout.h"
 
-const float micros = 1e6f;
+const double micros = 1.0E6;
 
 namespace {
 
@@ -33,12 +33,17 @@ namespace {
 class Clock
 {
 private:
-	__int64 frequency;
+	double timeToMicros;
 public:
 	Clock() {
 		LARGE_INTEGER _frequency;
+		timeBeginPeriod(1);
 		QueryPerformanceFrequency(&_frequency);
-		frequency = _frequency.QuadPart;
+		timeToMicros = micros / _frequency.QuadPart;
+	}
+
+	double getMicrosPerTick() const {
+		return timeToMicros;
 	}
 
 	microsecond_t currentMicrosecond()
@@ -46,129 +51,51 @@ public:
 		LARGE_INTEGER time;
 		QueryPerformanceCounter(&time);
 
-		return (microsecond_t)(micros * time.QuadPart / float(frequency));
+		return (microsecond_t)(time.QuadPart * timeToMicros);
 	}
 
 	void sleepUntil(microsecond_t time) {
 		const microsecond_t timeRemaining = time - currentMicrosecond();
-		const millisecond_t sleepTimeInt = (millisecond_t)(timeRemaining / 1000);
+		const millisecond_t sleepTimeInt = millisecond_t(timeRemaining / 1000);
 		if (sleepTimeInt <= 0) {
 			return;
 		}
 		Sleep(DWORD(sleepTimeInt));
-
 	}
 	
 	void preciseSleepUntil(microsecond_t time) {
-		sleepUntil(time - 500);
+		sleepUntil(time);
 		while (currentMicrosecond() < time) {
 		}
 	}
 } Clock;
 
 
-class TimeRange
-{
-private:
-	microsecond_t startTime;
-	microsecond_t endTime;
-public:
-	TimeRange() : startTime(-1), endTime(-1) {}
-
-	void start() {
-		startTime = Clock.currentMicrosecond();
-	}
-
-	void end() {
-		endTime = Clock.currentMicrosecond();
-	}
-
-	microsecond_t getStartTime() const {
-		return startTime;
-	}
-
-	microsecond_t getEndTime() const {
-		return startTime;
-	}
-
-	microsecond_t value() const {
-		return endTime - startTime;
-	}
-
-	bool hasValue() const {
-		return endTime >= startTime && startTime > 0 && endTime > 0;
-	}
-};
-
-class TimeRangeAverager
-{
-private:
-	int maxSamples;
-	microsecond_t rollingTotal;
-	int currentSampleOffset;
-	int totalSamples;
-	std::unique_ptr<millisecond_t[]> frameTimes;
-public:
-	TimeRangeAverager(int maxSamples) : maxSamples(maxSamples),
-		rollingTotal(0),
-		currentSampleOffset(0),
-		totalSamples(0),
-		frameTimes(new millisecond_t[maxSamples])
-	{
-		std::fill_n(frameTimes.get(), maxSamples, 0);
-	}
-
-	void sample(const TimeRange &sampler) {
-		if (sampler.hasValue()) {
-			const microsecond_t currentTimeFrame = sampler.value();
-			if (totalSamples < maxSamples) {
-				totalSamples++;
-			}
-			rollingTotal = rollingTotal - frameTimes[currentSampleOffset] + currentTimeFrame;
-			frameTimes[currentSampleOffset] = currentTimeFrame;
-			if (++currentSampleOffset >= maxSamples) {
-				currentSampleOffset = 0;
-			}
-		}
-	}
-
-	float getAverage() const {
-		return float(rollingTotal) / totalSamples;
-	}
-
-	bool hasSamples() const {
-		return totalSamples != 0;
-	}
-};
-
 class AdvancedController
 {
 private:
 	bool loadCapping;
-
-	TimeRangeAverager averageWorkTime;
-	TimeRangeAverager averageFrameTime;
-	TimeRange currentFrameTime;
-	TimeRange lastDebugMessage;
-	microsecond_t targetFrameTime;
-	float minDistance;
-	float maxDistance;
-	float targetLoad;
+	const microsecond_t targetFrameTime;
+	const float minDistance;
+	const float maxDistance;
+	const float targetLoad;
 	float momentum;
-	microsecond_t emergencyDrop;
+	const microsecond_t emergencyDrop;
 	float load;
-	bool checkPipboy;
-	bool debugEnabled;
-	microsecond_t debugMessageDelay;
-
+	const bool debugEnabled;
+	const microsecond_t debugMessageDelay;
+	float volumetricDistances[3];
 	std::unique_ptr<Fallout4> fallout4;
+
+	microsecond_t lastFrameStart;
+	microsecond_t nextDebugTime;
 
 	bool shouldCap() {
 		return loadCapping || !fallout4->isGameLoading();
 	}
 
 	bool shouldAdjust() {
-		return !(fallout4->isGamePaused() || fallout4->isGameLoading() || (checkPipboy && fallout4->isPipboyActive()));
+		return !(fallout4->isMainMenu() || fallout4->isGamePaused() || fallout4->isGameLoading());
 	}
 
 	void adjust()
@@ -195,20 +122,28 @@ private:
 				}
 			}
 		}
-		fallout4->setShadowDirDistance(max(minDistance, min(maxDistance, fallout4->getShadowDirDistance() + momentum)));
+		const float newDistance = max(minDistance, min(maxDistance, fallout4->getShadowDirDistance() + momentum));
+		fallout4->setShadowDirDistance(newDistance);
+		fallout4->setVolumetricQuality(getVolumetricQuality(newDistance)); 
+	}
+
+	int getVolumetricQuality(float distance)
+	{
+		for (int i = 0; i < 3; ++i) {
+			if (distance < volumetricDistances[i]) {
+				return i;
+			}
+		}
+		return 3;
 	}
 
 	bool shouldDisplayDebug() {
-		return debugEnabled && !lastDebugMessage.hasValue() || lastDebugMessage.value() > debugMessageDelay;
+		return debugEnabled && nextDebugTime < lastFrameStart;
 	}
 	
 public:
-	AdvancedController(bool loadCapping, microsecond_t targetFrameTime, float minDistance, float maxDistance, float targetLoad, microsecond_t emergencyDrop, bool checkPipboy, bool debugEnabled) : 
+	AdvancedController(bool loadCapping, microsecond_t targetFrameTime, float minDistance, float maxDistance, float targetLoad, microsecond_t emergencyDrop, float _volumetricDistances[3], bool checkPipboy, bool debugEnabled) : 
 		loadCapping(loadCapping), 
-		averageWorkTime(20), 
-		averageFrameTime(20), 
-		currentFrameTime(), 
-		lastDebugMessage(), 
 		targetFrameTime(targetFrameTime), 
 		minDistance(minDistance), 
 		maxDistance(maxDistance), 
@@ -216,43 +151,50 @@ public:
 		momentum(1), 
 		emergencyDrop(emergencyDrop), 
 		load(0), 
-		checkPipboy(checkPipboy),
 		debugEnabled(debugEnabled), 
-		debugMessageDelay(micros/6),
-		fallout4(std::make_unique<Fallout4>())
-	{}
+		debugMessageDelay(microsecond_t(micros)),
+		fallout4(std::make_unique<Fallout4>()),
+		lastFrameStart(0),
+		nextDebugTime(0)
+	{
+		memcpy(volumetricDistances, _volumetricDistances, sizeof(float) * 3);
+	}
 
 	void tick()
 	{
-		currentFrameTime.end();
-		if (currentFrameTime.hasValue()) {
-			averageWorkTime.sample(currentFrameTime);
-			load = averageWorkTime.getAverage() / targetFrameTime;
-
-			if (shouldAdjust()) {
-				adjust();
-			}
-
-			if (shouldCap()) {
-				Clock.preciseSleepUntil(currentFrameTime.getStartTime() + targetFrameTime);
-			}
-
-			lastDebugMessage.end();
-			if (shouldDisplayDebug()) {
-				const int BUF_LEN = 256;
-				char buf[BUF_LEN];
-				//                         1    2        3     4    5        6     7    9  10   
-				sprintf_s(buf, BUF_LEN, "D%6d(%+6.1f) GR%1d %5.1f/%5.1f = %3.0f%%, %8s %5s %4s.  \n",
-					// 1									   2			      	3								 4										5									6		7								9										 10											11
-					(int)fallout4->getShadowDirDistance(), momentum, fallout4->getVolumetricQuality(), micros / averageWorkTime.getAverage(), micros / averageFrameTime.getAverage(), load*100, fallout4->isPipboyActive() != 0 ? "Pip-Boy" : "", fallout4->isGamePaused() != 0 ? "Pause" : "", fallout4->isGameLoading() != 0 ? "Load" : "");
-				console.print(buf);
-				lastDebugMessage.start();
-			}
-			
-			currentFrameTime.end();
-			averageFrameTime.sample(currentFrameTime);
+		if (lastFrameStart == 0) {
+			lastFrameStart = Clock.currentMicrosecond();
+			return;
 		}
-		currentFrameTime.start();
+
+		const microsecond_t workCompleted = Clock.currentMicrosecond();
+		const microsecond_t currentWorkTime = workCompleted - lastFrameStart;
+		
+		load = float(currentWorkTime) / targetFrameTime;
+
+		if (shouldAdjust()) {
+			adjust();
+		}
+
+		microsecond_t sleepTime = 0;
+
+		if (shouldCap()) {
+			sleepTime = lastFrameStart + targetFrameTime - workCompleted;
+			Clock.preciseSleepUntil(lastFrameStart + targetFrameTime);
+		}
+
+
+		if (shouldDisplayDebug()) {
+			const microsecond_t totalFrameTime = Clock.currentMicrosecond() - lastFrameStart;
+			const int BUF_LEN = 256;
+			char buf[BUF_LEN];
+			sprintf_s(buf, BUF_LEN, "D%6d(%+6.1f) GR%1d %+5llduS work %+5llduS sleep =%+5llduS frame. %3.0f%% of target %5lldUS, %4s %5s %4s.\n",
+				(int)fallout4->getShadowDirDistance(), momentum, fallout4->getVolumetricQuality(), currentWorkTime, sleepTime, totalFrameTime, load * 100, targetFrameTime, fallout4->isMainMenu() ? "Menu" : "" ,fallout4->isGamePaused() != 0 ? "Paused" : "Running", fallout4->isGameLoading() != 0 ? "Load" : "");
+			console.print(buf);
+			nextDebugTime = Clock.currentMicrosecond() + debugMessageDelay;
+		}
+
+		lastFrameStart = Clock.currentMicrosecond();
 	}
 };
 
@@ -337,8 +279,10 @@ std::unique_ptr<AdvancedController> createController(const char *configPath)
 		}
 		fclose(p);
 	}
-
-	return std::make_unique<AdvancedController>(c.bLoadCapping != FALSE, microsecond_t(micros/c.fTargetFPS), c.fShadowDirDistanceMin, c.fShadowDirDistanceMax, c.fTargetLoad/100.0f, microsecond_t(micros/c.fEmergencyDropFPS), c.bCheckPipboy != FALSE, c.bShowDiagnostics != FALSE);
+	if (c.bShowDiagnostics) {
+		console.print("xwize's Dynamic Performance Tuner is running, with Stochastic Tinker's modifications.");
+	}
+	return std::make_unique<AdvancedController>(c.bLoadCapping != FALSE, microsecond_t(micros/c.fTargetFPS), c.fShadowDirDistanceMin, c.fShadowDirDistanceMax, c.fTargetLoad/100.0f, microsecond_t(micros/c.fEmergencyDropFPS), c.fGRQualityShadowDist, c.bCheckPipboy != FALSE, c.bShowDiagnostics != FALSE);
 }
 
 Controller::Controller(const char *configPath) : controllerImpl(createController(configPath))

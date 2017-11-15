@@ -37,8 +37,12 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
 
 		// Install the linked hooks if there
 		LoadLibrary(_T(DXGI_LINKED_DLL));
-		console.print("xwize's Dynamic Performance Tuner is running, with Stochastic Tinker's modifications.");
-		controller = std::make_unique<Controller>(CONFIG_FILE);
+		const int FILENAME_SIZE = 1024;
+		TCHAR filename[FILENAME_SIZE];
+		int filenameLength = GetModuleFileName(NULL, filename, FILENAME_SIZE);
+		if (lstrcmpiW(filename + filenameLength - strlen("\\Fallout4.exe"), _T("\\Fallout4.exe")) == 0) {
+			controller = std::make_unique<Controller>(CONFIG_FILE);
+		}
 	}
 	if (reason == DLL_PROCESS_DETACH) {
 		FreeLibrary(hL);
@@ -59,7 +63,9 @@ PresentPtr Present_original;
 HRESULT __stdcall Hooked_IDXGISwapChain_Present(IDXGISwapChain* pThis, UINT a, UINT b) {
 	//MessageBox(NULL, _T("Hooked_IDXGISwapChain_Present"), _T("dxgi.dll"), NULL);
 	HRESULT hr = Present_original(pThis, a, b);
-	controller->tick();
+	if (controller.get()) {
+		controller->tick();
+	}
 	return hr;
 }
 

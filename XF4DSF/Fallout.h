@@ -16,17 +16,15 @@ public:
 	Fallout4();
 	~Fallout4();
 
-	float getShadowDistance() const;
-	void setShadowDistance(float shadowDistance);
 	float getShadowDirDistance() const;
 	void setShadowDirDistance(float shadowDistance);
 	
 	int getVolumetricQuality() const;
 	void setVolumetricQuality(int volumetricQuality);
 
-	bool isPipboyActive() const;
 	bool isGamePaused() const;
 	bool isGameLoading() const;
+	bool isMainMenu() const;
 };
 
 #endif // __FALLOUT_H__

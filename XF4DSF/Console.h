@@ -13,6 +13,7 @@ public:
 	~Console();
 
 	void print(const std::string &string);
+	void print(const std::wstring &string);
 	COORD getCursorPosition();
 	void setCursorPosition(COORD cord);
 };
