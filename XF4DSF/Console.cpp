@@ -27,6 +27,12 @@ void Console::print(const std::string &string) {
 	WriteConsoleA(handle, string.c_str(), (DWORD)(string.length()), &dwCharsWritten, NULL);
 }
 
+void Console::print(const std::wstring &string) {
+	DWORD dwCharsWritten;
+	allocate();
+	WriteConsoleW(handle, string.c_str(), (DWORD)(string.length()), &dwCharsWritten, NULL);
+}
+
 COORD Console::getCursorPosition() {
 	CONSOLE_SCREEN_BUFFER_INFO bufferInfo;
 

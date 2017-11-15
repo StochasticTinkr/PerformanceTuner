@@ -1,14 +1,62 @@
 #include "Includes.h"
 #include "Fallout.h"
+/**
+ * <?xml version="1.0" encoding="utf-8"?>
+<CheatTable>
+  <CheatEntries>
+    <CheatEntry>
+      <ID>0</ID>
+      <Description>"In main menu"</Description>
+      <VariableType>4 Bytes</VariableType>
+      <Address>Fallout4.exe+5B473A8</Address>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>5</ID>
+      <Description>"Transitioning."</Description>
+      <VariableType>4 Bytes</VariableType>
+      <Address>Fallout4.exe+5A9D300</Address>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>7</ID>
+      <Description>"Gameplay paused"</Description>
+      <VariableType>4 Bytes</VariableType>
+      <Address>Fallout4.exe+5AA50E4</Address>
+    </CheatEntry>
+  </CheatEntries>
+</CheatTable>
+<?xml version="1.0" encoding="utf-8"?>
+<CheatTable>
+<CheatEntries>
+<CheatEntry>
+<ID>1</ID>
+<Description>"No description"</Description>
+<LastState Value="15000" RealAddress="7FF6F5BBBA1C"/>
+<VariableType>Float</VariableType>
+<Address>Fallout4.exe+676BA1C</Address>
+</CheatEntry>
+</CheatEntries>
+</CheatTable><?xml version="1.0" encoding="utf-8"?>
+<CheatTable>
+  <CheatEntries>
+    <CheatEntry>
+      <ID>2</ID>
+      <Description>"No description"</Description>
+      <LastState Value="1" RealAddress="7FF6F2D53FD8"/>
+      <VariableType>4 Bytes</VariableType>
+      <Address>Fallout4.exe+3903FD8</Address>
+    </CheatEntry>
+  </CheatEntries>
+</CheatTable>
+
+
+ */
 
 namespace {
-	const unsigned __int64 offset_fShadowDistance = 0x38e9778;
-	const unsigned __int64 offset_fShadowDirDistance = 0x674fd0c;
-//	const unsigned __int64 offset_fLookSensitivity = 0x37b8670;
-	const unsigned __int64 offset_iVolumetricQuality = 0x38e8258;
-	const unsigned __int64 offset_bPipboyStatus = 0x5af93b0;
-	const unsigned __int64 offset_bGameUpdatePaused = 0x5a85340;
-	const unsigned __int64 offset_bIsLoading = 0x5ada16c;
+	const unsigned __int64 offset_fShadowDirDistance = 0x676BA1C;
+	const unsigned __int64 offset_iVolumetricQuality = 0x3903FD8;
+	const unsigned __int64 offset_bGameUpdatePaused = 0x5AA50E4;
+	const unsigned __int64 offset_bIsMainMenu = 0x5B473A8;
+	const unsigned __int64 offset_bIsLoading = 0x5A9D300;
 
 	HMODULE GetFalloutModuleHandle() {
 		return GetModuleHandleA(NULL);
@@ -31,20 +79,18 @@ struct refTo
 
 struct Fallout4Addresses
 {
-	Fo4Float &shadowDistance;
 	Fo4Float &shadowDirDistance;
 	Fo4Int &volumetricQuality;
-	const Fo4Int &pipboyStatus;
 	const Fo4Int &gamePause;
 	const Fo4Int &loadingStatus;
+	const Fo4Int &mainMenuStatus;
 
 	Fallout4Addresses(unsigned __int64 base) :
-		shadowDistance(refTo{ base + offset_fShadowDistance }),
 		shadowDirDistance(refTo{ base + offset_fShadowDirDistance }),
 		volumetricQuality(refTo{ base + offset_iVolumetricQuality }),
-		pipboyStatus(refTo{ base + offset_bPipboyStatus }),
 		gamePause(refTo{ base + offset_bGameUpdatePaused }),
-		loadingStatus(refTo{ base + offset_bIsLoading })
+		loadingStatus(refTo{ base + offset_bIsLoading }),
+		mainMenuStatus(refTo{ base + offset_bIsMainMenu })
 	{}
 };
 
@@ -55,20 +101,8 @@ Fallout4::~Fallout4() {
 }
 
 
-bool Fallout4::isPipboyActive() const {
-	return addresses->pipboyStatus != 0;
-}
-
 bool Fallout4::isGamePaused() const {
 	return addresses->gamePause != 0;
-}
-
-void Fallout4::setShadowDistance(float shadowDistance) {
-	addresses->shadowDistance = shadowDistance;
-}
-
-float Fallout4::getShadowDistance() const {
-	return addresses->shadowDistance;
 }
 
 void Fallout4::setShadowDirDistance(float shadowDirDistance) {
@@ -88,5 +122,9 @@ int Fallout4::getVolumetricQuality() const {
 }
 
 bool Fallout4::isGameLoading() const {
-	return addresses->loadingStatus && addresses->gamePause;
+	return addresses->loadingStatus;
+}
+
+bool Fallout4::isMainMenu() const {
+	return addresses->mainMenuStatus;
 }

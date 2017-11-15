@@ -227,11 +227,13 @@
     <ClCompile Include="Controller.cpp" />
     <ClCompile Include="Fallout.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Console.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="XF4DSF.def" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Console.h" />
     <ClInclude Include="Controller.h" />
     <ClInclude Include="Fallout.h" />
     <ClInclude Include="Includes.h" />
