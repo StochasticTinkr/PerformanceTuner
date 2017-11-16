@@ -1,12 +1,11 @@
-# PerformanceTuner
-Fallout 4 Mod for dynamically reducing shadow distance.
-
-Current release page: http://ec2-13-59-185-176.us-east-2.compute.amazonaws.com/
+# Dynamic Performance for Fallout 4
+Based originally on xwise dynamic performance tuner.  Mostly rewritten, and upgraded to Fallout 4 version 1.10.40.
 
 Built with Visual Studio 2015
 
-Source Overview
+## Features
+* Framerate cap - Will limit framerate.
+* Load Acceleration - Removes framerate capping on loading screens to reduce load time.
+* Adjust shadow distance as needed.
+* Adjust godray/volumnetric quality. 
 
-* Main.cpp - Implementation of dxgi.dll proxy. Uses two virtual method table hooks on IDXGISwapChain and IDXGIFactory
-* Controller.cpp - The main implementation of the performance tuner
-* Fallout.cpp - Interface for communicating with the game, memory offsets of game variables etc
