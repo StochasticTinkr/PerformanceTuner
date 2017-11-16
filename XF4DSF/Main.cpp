@@ -7,7 +7,7 @@
 
 #pragma pack(1)
 
-#define CONFIG_FILE "xdpft.ini"
+#define CONFIG_FILE "dynaperf.ini"
 #define DXGI_DLL "dxgi.dll"
 #define DXGI_LINKED_DLL "dxgi_linked.dll"
 
@@ -38,10 +38,11 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
 		// Install the linked hooks if there
 		LoadLibrary(_T(DXGI_LINKED_DLL));
 		const int FILENAME_SIZE = 1024;
-		TCHAR filename[FILENAME_SIZE];
-		int filenameLength = GetModuleFileName(NULL, filename, FILENAME_SIZE);
-		if (lstrcmpiW(filename + filenameLength - strlen("\\Fallout4.exe"), _T("\\Fallout4.exe")) == 0) {
-			controller = std::make_unique<Controller>(CONFIG_FILE);
+		CHAR filename[FILENAME_SIZE];
+		int filenameLength = GetModuleFileNameA(NULL, filename, FILENAME_SIZE);
+		if (_strcmpi(filename + filenameLength - strlen("\\Fallout4.exe"), ("\\Fallout4.exe")) == 0) {
+			strcpy_s(filename + filenameLength - strlen("Fallout4.exe"), FILENAME_SIZE-filenameLength, CONFIG_FILE);
+			controller = std::make_unique<Controller>(filename);
 		}
 	}
 	if (reason == DLL_PROCESS_DETACH) {
