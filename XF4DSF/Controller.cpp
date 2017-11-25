@@ -78,6 +78,7 @@ class AdvancedController
 private:
 	const bool usePreciseSleep;
 	const bool loadCapping;
+	const bool capFramerate;
 	const microsecond_t targetFrameTime;
 	const float minDistance;
 	const float maxDistance;
@@ -95,7 +96,7 @@ private:
 
 	bool shouldCap()
 	{
-		return loadCapping || !fallout4->isGameLoading();
+		return capFramerate && (loadCapping || !fallout4->isGameLoading());
 	}
 
 	bool shouldAdjust()
@@ -161,10 +162,11 @@ private:
 	}
 
 public:
-	AdvancedController(bool loadCapping, bool usePreciseSleep, microsecond_t targetFrameTime, float minDistance, float maxDistance,
+	AdvancedController(bool loadCapping, bool usePreciseSleep, bool capFramerate, microsecond_t targetFrameTime, float minDistance, float maxDistance,
 	                   float targetLoad, bool updateVolumetric, float _volumetricDistances[3], bool debugEnabled) :
 		usePreciseSleep(usePreciseSleep),
 		loadCapping(loadCapping),
+		capFramerate(capFramerate),
 		targetFrameTime(targetFrameTime),
 		minDistance(minDistance),
 		maxDistance(maxDistance),
@@ -221,9 +223,9 @@ public:
 			const int BUF_LEN = 256;
 			char buf[BUF_LEN];
 			sprintf_s(buf, BUF_LEN,
-			          "D%6d(%+6.1f) GR%1d (work+sleep=frame: %+5lldms + %+5lldms = %+5lldms). %3.0f%% of target %5lldms, %7s %7s %4s.\n",
-			          (int)fallout4->getShadowDirDistance(), momentum, fallout4->getVolumetricQuality(), currentWorkTime/1000,
-			          sleepTime/1000, totalFrameTime/100, load * 100, targetFrameTime/1000, fallout4->isMainMenu() ? "In Menu" : "",
+			          "D%6d(%+6.1f) GR%1d (work+sleep=frame: %5.1fms + %5.1fms = %5.1fms). %3.0f%% of target %5lldms, %7s %7s %4s.\n",
+			          (int)fallout4->getShadowDirDistance(), momentum, fallout4->getVolumetricQuality(), currentWorkTime/1000.0f,
+			          sleepTime/1000.0f, totalFrameTime/1000.0f, load * 100, targetFrameTime/1000, fallout4->isMainMenu() ? "In Menu" : "",
 			          fallout4->isGamePaused() != 0 ? "Paused" : "Running", fallout4->isGameLoading() != 0 ? "Load" : "");
 			console.print(buf);
 			nextDebugTime = Clock.currentMicrosecond() + debugMessageDelay;
@@ -237,6 +239,7 @@ public:
 std::unique_ptr<AdvancedController> createController(const char* configPath)
 {
 	auto fTargetFPS = GetPrivateProfileFloatA("Simple", "fTargetFPS", 60.0, configPath);
+	auto bCapFramerate = GetPrivateProfileIntA("Simple", "bCapFramerate", TRUE, configPath);
 	auto fTargetLoad = GetPrivateProfileFloatA("Simple", "fTargetLoad", 98, configPath);
 	auto fShadowDirDistanceMin = max(0.0f, GetPrivateProfileFloatA("Simple", "fShadowDirDistanceMin", 2500.0f, configPath));
 	auto fShadowDirDistanceMax = max(0.0f, GetPrivateProfileFloatA("Simple", "fShadowDirDistanceMax", 12000.0f, configPath));
@@ -258,6 +261,7 @@ std::unique_ptr<AdvancedController> createController(const char* configPath)
 		std::stringstream details;
 		details
 			<< "  Target FPS:            " << fTargetFPS << std::endl
+			<< "  Max Framerate:         " << (bCapFramerate ? "Locked" : "Unlocked") << std::endl
 			<< "  Sleep precision:       " << (bUsePreciseCapping ? "Microsecond" : "Millisecond") << std::endl
 			<< "  Target Load:           " << fTargetLoad << std::endl
 			<< "  Load Screen:           " << (bLoadCapping ? "Normal" : "Accelerated") << std::endl
@@ -274,7 +278,7 @@ std::unique_ptr<AdvancedController> createController(const char* configPath)
 		console.print(details.str());
 	}
 
-	return std::make_unique<AdvancedController>(bLoadCapping != FALSE, bUsePreciseCapping != FALSE, microsecond_t(micros / fTargetFPS),
+	return std::make_unique<AdvancedController>(bLoadCapping != FALSE, bUsePreciseCapping != FALSE, bCapFramerate != FALSE, microsecond_t(micros / fTargetFPS),
 	                                            fShadowDirDistanceMin, fShadowDirDistanceMax, fTargetLoad / 100.0f,
 	                                            bAdjustGRQuality != FALSE, fGRQualityShadowDist, bShowDiagnostics != FALSE);
 }
