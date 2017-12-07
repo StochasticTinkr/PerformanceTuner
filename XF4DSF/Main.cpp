@@ -4,6 +4,8 @@
 #include "Includes.h"
 #include "Controller.h"
 #include "Console.h"
+#include "StringUtils.h"
+#include "Fallout.h"
 
 #pragma pack(1)
 
@@ -14,6 +16,13 @@
 FARPROC p[9] = { 0 };
 
 std::unique_ptr<Controller> controller;
+
+std::string getCurrentFilename()
+{
+	const int FILENAME_SIZE = 1024;
+	CHAR cfilename[FILENAME_SIZE];
+	return std::string(cfilename, GetModuleFileNameA(NULL, cfilename, FILENAME_SIZE));
+}
 
 extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
 	static HINSTANCE hL;
@@ -37,12 +46,10 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
 
 		// Install the linked hooks if there
 		LoadLibrary(_T(DXGI_LINKED_DLL));
-		const int FILENAME_SIZE = 1024;
-		CHAR filename[FILENAME_SIZE];
-		int filenameLength = GetModuleFileNameA(NULL, filename, FILENAME_SIZE);
-		if (_strcmpi(filename + filenameLength - strlen("\\Fallout4.exe"), ("\\Fallout4.exe")) == 0) {
-			strcpy_s(filename + filenameLength - strlen("Fallout4.exe"), FILENAME_SIZE-filenameLength, CONFIG_FILE);
-			controller = std::make_unique<Controller>(filename);
+		const std::string filename(getCurrentFilename());
+		if (stringEndsWithIgnoreCase(filename, "\\Fallout4.exe")) {
+			const std::string configFilename(replaceSuffix(filename, strlen("Fallout4.exe"), CONFIG_FILE));
+			controller = std::make_unique<Controller>(configFilename, std::make_shared<Fallout4>(filename));
 		}
 	}
 	if (reason == DLL_PROCESS_DETACH) {

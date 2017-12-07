@@ -76,6 +76,7 @@ public:
 class AdvancedController
 {
 private:
+	std::shared_ptr<Fallout4> fallout4;
 	const bool usePreciseSleep;
 	const bool loadCapping;
 	const bool capFramerate;
@@ -89,7 +90,6 @@ private:
 	const microsecond_t debugMessageDelay;
 	const bool updateVolumetric;
 	float volumetricDistances[3];
-	std::unique_ptr<Fallout4> fallout4;
 
 	microsecond_t lastFrameStart;
 	microsecond_t nextDebugTime;
@@ -162,8 +162,9 @@ private:
 	}
 
 public:
-	AdvancedController(bool loadCapping, bool usePreciseSleep, bool capFramerate, microsecond_t targetFrameTime, float minDistance, float maxDistance,
+	AdvancedController(std::shared_ptr<Fallout4> fallout4, bool loadCapping, bool usePreciseSleep, bool capFramerate, microsecond_t targetFrameTime, float minDistance, float maxDistance,
 	                   float targetLoad, bool updateVolumetric, float _volumetricDistances[3], bool debugEnabled) :
+		fallout4(fallout4),
 		usePreciseSleep(usePreciseSleep),
 		loadCapping(loadCapping),
 		capFramerate(capFramerate),
@@ -171,12 +172,11 @@ public:
 		minDistance(minDistance),
 		maxDistance(maxDistance),
 		targetLoad(targetLoad),
-		updateVolumetric(updateVolumetric),
 		momentum(1),
 		load(0),
 		debugEnabled(debugEnabled),
 		debugMessageDelay(microsecond_t(micros)),
-		fallout4(std::make_unique<Fallout4>()),
+		updateVolumetric(updateVolumetric),
 		lastFrameStart(0),
 		nextDebugTime(0)
 	{
@@ -236,8 +236,9 @@ public:
 };
 
 
-std::unique_ptr<AdvancedController> createController(const char* configPath)
+std::unique_ptr<AdvancedController> make_controller(std::string configFile, std::shared_ptr<Fallout4> fallout4)
 {
+	auto configPath = configFile.c_str();
 	auto fTargetFPS = GetPrivateProfileFloatA("Simple", "fTargetFPS", 60.0, configPath);
 	auto bCapFramerate = GetPrivateProfileIntA("Simple", "bCapFramerate", TRUE, configPath);
 	auto fTargetLoad = GetPrivateProfileFloatA("Simple", "fTargetLoad", 98, configPath);
@@ -278,12 +279,12 @@ std::unique_ptr<AdvancedController> createController(const char* configPath)
 		console.print(details.str());
 	}
 
-	return std::make_unique<AdvancedController>(bLoadCapping != FALSE, bUsePreciseCapping != FALSE, bCapFramerate != FALSE, microsecond_t(micros / fTargetFPS),
+	return std::make_unique<AdvancedController>(fallout4, bLoadCapping != FALSE, bUsePreciseCapping != FALSE, bCapFramerate != FALSE, microsecond_t(micros / fTargetFPS),
 	                                            fShadowDirDistanceMin, fShadowDirDistanceMax, fTargetLoad / 100.0f,
 	                                            bAdjustGRQuality != FALSE, fGRQualityShadowDist, bShowDiagnostics != FALSE);
 }
 
-Controller::Controller(const char* configPath) : controllerImpl(createController(configPath))
+Controller::Controller(std::string configPath, std::shared_ptr<Fallout4> fallout4) : controllerImpl(make_controller(configPath, fallout4))
 {
 }
 

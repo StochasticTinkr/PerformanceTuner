@@ -2,6 +2,7 @@
 #define __FALLOUT_H__
 
 #include <memory>
+#include <string>
 
 typedef __int32 Fo4Int;
 typedef float Fo4Float;
@@ -13,7 +14,7 @@ private:
 	std::unique_ptr<Fallout4Addresses> addresses;
 
 public:
-	Fallout4();
+	Fallout4(std::string executableFile);
 	~Fallout4();
 
 	float getShadowDirDistance() const;
