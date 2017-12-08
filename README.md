@@ -38,21 +38,21 @@ This is an example of the ini file. The performance tuner will look for a while 
     ; "targetFrameTime * fTargetLoad/100 = game engine work time"
     fTargetLoad=98.0 
 
-	; The Momentum is how fast the shadow distance is changing, either up or down.  If the current frame-time is higher than the 
-	; target frame time (eg, the load is too high), the momentum starts in the negative direction, accerating until it reaches the minumum momentum value.
-	; If, instead, the current frame-time is lower (the load can increase), we start the momentum in the positive direction, accerating until it goes until
-	; it reaches the maximum value.
-	; Either way, if the current frame time crosses over the target frame time, the momentum is reset in the proper direction.
+    ; The Momentum is how fast the shadow distance is changing, either up or down.  If the current frame-time is higher than the 
+    ; target frame time (eg, the load is too high), the momentum starts in the negative direction, accerating until it reaches the minumum momentum value.
+    ; If, instead, the current frame-time is lower (the load can increase), we start the momentum in the positive direction, accerating until it goes until
+    ; it reaches the maximum value.
+    ; Either way, if the current frame time crosses over the target frame time, the momentum is reset in the proper direction.
 
-	; Accelerate at 10% every time we're continuing downward.
-	fMomentumDownAcceleration=1.1 
-	; Never go faster than 1000/frame downward.
-	fMinMomentum=-1000 
+    ; Accelerate at 10% every time we're continuing downward.
+    fMomentumDownAcceleration=1.1 
+    ; Never go faster than 1000/frame downward.
+    fMinMomentum=-1000 
 
-	; Accelerate at 2.5% ever time we're continuing upward.
-	fMomentumUpAcceleration=1.025
-	; Never go faster than 500/frame upward.
-	fMaxMomentum=500
+    ; Accelerate at 2.5% ever time we're continuing upward.
+    fMomentumUpAcceleration=1.025
+    ; Never go faster than 500/frame upward.
+    fMaxMomentum=500
 	    
     ; fShadowDirDistance Min/Max set limits on what Performance Tuner will set shadow distance to.   
     fShadowDirDistanceMin=2500  
@@ -96,12 +96,12 @@ If it is unable to find that file, it will open a console and tell you which fil
 ### Contents of the addresses ini file
 Here is the example fallout4-addresses-1.10.50.0.ini
 
-	[Addresses]
-	fShadowDirDistance=6769A1C
-	iVolumetricQuality=3901FD8
-	bGameUpdatePaused=5A9F000
-	bIsMainMenu=5B473A8
-	bIsLoading=5AF3E4C
+    [Addresses]
+    fShadowDirDistance=6769A1C
+    iVolumetricQuality=3901FD8
+    bGameUpdatePaused=5A9F000
+    bIsMainMenu=5B473A8
+    bIsLoading=5AF3E4C
 
 ### Create a new ini file yourself
 I use "CheatEngine" to help me find the locations for these settings.  I told CheatEngine to automatically attach to Fallout4.exe whenever 
