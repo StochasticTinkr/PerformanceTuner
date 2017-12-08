@@ -167,7 +167,7 @@ std::unique_ptr<Fallout4Addresses> make_fallout4_addresses(const std::string& fa
 	auto configFile = addressIniFile.c_str();
 	if (!FileExistsA(configFile))
 	{
-		return std::unique_ptr<Fallout4Addresses>(nullptr);
+		throw std::exception(("Unable to find addresses file \"" + addressIniFile + "\". ").c_str());
 	}
 	
 	const offset_t offset_fShadowDirDistance = GetPrivateProfileHexOffset("Addresses", "fShadowDirDistance", -1, configFile);
@@ -224,4 +224,9 @@ bool Fallout4::isGameLoading() const
 bool Fallout4::isMainMenu() const
 {
 	return addresses->mainMenuStatus != 0;
+}
+
+bool Fallout4::loadedSuccessfully() const
+{
+	return addresses.get() != nullptr;
 }

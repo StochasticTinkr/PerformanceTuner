@@ -14,14 +14,12 @@
 #define DXGI_LINKED_DLL "dxgi_linked.dll"
 
 FARPROC p[9] = { 0 };
-
-std::unique_ptr<Controller> controller;
-
-std::string getCurrentFilename()
+namespace
 {
-	const int FILENAME_SIZE = 1024;
-	CHAR cfilename[FILENAME_SIZE];
-	return std::string(cfilename, GetModuleFileNameA(NULL, cfilename, FILENAME_SIZE));
+	std::unique_ptr<Controller> controller;
+
+	void initController();
+
 }
 
 extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
@@ -46,11 +44,7 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
 
 		// Install the linked hooks if there
 		LoadLibrary(_T(DXGI_LINKED_DLL));
-		const std::string filename(getCurrentFilename());
-		if (stringEndsWithIgnoreCase(filename, "\\Fallout4.exe")) {
-			const std::string configFilename(replaceSuffix(filename, strlen("Fallout4.exe"), CONFIG_FILE));
-			controller = std::make_unique<Controller>(configFilename, std::make_shared<Fallout4>(filename));
-		}
+		initController();
 	}
 	if (reason == DLL_PROCESS_DETACH) {
 		FreeLibrary(hL);
@@ -184,3 +178,33 @@ extern "C" long Proxy_DXGIReportAdapterConfiguration() {
 	long rv = pps();
 	return rv;
 }
+
+namespace
+{
+	std::string getCurrentFilename()
+	{
+		const int FILENAME_SIZE = 1024;
+		CHAR cfilename[FILENAME_SIZE];
+		return std::string(cfilename, GetModuleFileNameA(NULL, cfilename, FILENAME_SIZE));
+	}
+	
+	void initController()
+	{
+		const std::string filename(getCurrentFilename());
+		if (stringEndsWithIgnoreCase(filename, "\\Fallout4.exe")) {
+			const std::string configFilename(replaceSuffix(filename, strlen("Fallout4.exe"), CONFIG_FILE));
+			try
+			{
+				auto fallout4 = std::make_shared<Fallout4>(filename);
+				controller = std::make_unique<Controller>(configFilename, fallout4);
+			}
+			catch (const std::exception& e)
+			{
+				console.print("Unable to start Dynamic Performance Tuner.\n");
+				console.print(e.what());
+				console.print("\n");
+			}
+		}
+	}
+}
+

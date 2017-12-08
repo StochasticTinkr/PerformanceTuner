@@ -14,17 +14,60 @@ namespace
 	float GetPrivateProfileFloatA(LPCSTR lpAppName, LPCSTR lpKeyName, float defaultValue, LPCSTR lpFileName)
 	{
 		char result[256];
-		GetPrivateProfileStringA(lpAppName, lpKeyName, "", result, 256, lpFileName);
+		const auto length = GetPrivateProfileStringA(lpAppName, lpKeyName, "", result, 256, lpFileName);
+		if (length == 0)
+		{
+			return defaultValue;
+		}
 		_set_errno(0);
 		float parsed = float(atof(result));
 		if (errno)
 		{
-			return defaultValue;
+			throw std::exception((std::string("Unable to parse ") + lpKeyName + "=" + std::string(result, length)).c_str());
 		}
 
 		return parsed;
 	}
 }
+
+template <typename value_t, unsigned int maxRecords>
+class Average
+{
+private:
+	value_t values[maxRecords];
+	int currentOffset;
+	int totalRecords;
+
+public:
+	Average() : values(), currentOffset(0), totalRecords(0)
+	{
+	}
+
+	Average& operator +=(value_t value)
+	{
+		values[currentOffset] = value;
+		if (++currentOffset >= maxRecords)
+		{
+			currentOffset = 0;
+		}
+		if (totalRecords < maxRecords)
+		{
+			++totalRecords;
+		}
+
+		return *this;
+	}
+
+	operator value_t() const
+	{
+		value_t total(0);
+		for (int i = 0; i < totalRecords; ++i)
+		{
+			total += values[i];
+		}
+		return total / totalRecords;
+	}
+};
 
 class Clock
 {
@@ -90,6 +133,13 @@ private:
 	const microsecond_t debugMessageDelay;
 	const bool updateVolumetric;
 	float volumetricDistances[3];
+	float momentumDownAcceleration;
+	float minMomentum;
+	float momentumUpAcceleration;
+	float maxMomentum;
+
+
+	Average<float, 10> workTimeAverage;
 
 	microsecond_t lastFrameStart;
 	microsecond_t nextDebugTime;
@@ -104,6 +154,7 @@ private:
 		return !(fallout4->isMainMenu() || fallout4->isGamePaused() || fallout4->isGameLoading());
 	}
 
+
 	void adjust()
 	{
 		if (targetLoad > load)
@@ -114,11 +165,7 @@ private:
 			}
 			else
 			{
-				momentum *= 1.025;
-				if (momentum > 500)
-				{
-					momentum = 500;
-				}
+				momentum = min(momentum * momentumUpAcceleration, maxMomentum);
 			}
 		}
 		else
@@ -129,11 +176,7 @@ private:
 			}
 			else
 			{
-				momentum *= 1.025;
-				if (momentum < -500)
-				{
-					momentum = -500;
-				}
+				momentum = max(momentum * momentumDownAcceleration, minMomentum);
 			}
 		}
 		const float newDistance = max(minDistance, min(maxDistance, fallout4->getShadowDirDistance() + momentum));
@@ -162,8 +205,14 @@ private:
 	}
 
 public:
-	AdvancedController(std::shared_ptr<Fallout4> fallout4, bool loadCapping, bool usePreciseSleep, bool capFramerate, microsecond_t targetFrameTime, float minDistance, float maxDistance,
-	                   float targetLoad, bool updateVolumetric, float _volumetricDistances[3], bool debugEnabled) :
+	AdvancedController(std::shared_ptr<Fallout4> fallout4, bool loadCapping, bool usePreciseSleep, bool capFramerate,
+	                   microsecond_t targetFrameTime, float minDistance, float maxDistance,
+	                   float targetLoad,
+	                   float momentumDownAcceleration,
+	                   float minMomentum,
+	                   float momentumUpAcceleration,
+	                   float maxMomentum,
+	                   bool updateVolumetric, float _volumetricDistances[3], bool debugEnabled) :
 		fallout4(fallout4),
 		usePreciseSleep(usePreciseSleep),
 		loadCapping(loadCapping),
@@ -177,6 +226,10 @@ public:
 		debugEnabled(debugEnabled),
 		debugMessageDelay(microsecond_t(micros)),
 		updateVolumetric(updateVolumetric),
+		momentumDownAcceleration(momentumDownAcceleration),
+		minMomentum(minMomentum),
+		momentumUpAcceleration(momentumUpAcceleration),
+		maxMomentum(maxMomentum),
 		lastFrameStart(0),
 		nextDebugTime(0)
 	{
@@ -195,7 +248,9 @@ public:
 		const microsecond_t workCompleted = Clock.currentMicrosecond();
 		const microsecond_t currentWorkTime = workCompleted - lastFrameStart;
 
-		load = float(currentWorkTime) / targetFrameTime;
+		workTimeAverage += float(currentWorkTime);
+
+		load = float(workTimeAverage) / targetFrameTime;
 
 		if (shouldAdjust())
 		{
@@ -210,7 +265,7 @@ public:
 			if (usePreciseSleep)
 			{
 				Clock.preciseSleepUntil(lastFrameStart + targetFrameTime);
-			} 
+			}
 			else
 			{
 				Clock.sleepUntil(lastFrameStart + targetFrameTime);
@@ -224,8 +279,10 @@ public:
 			char buf[BUF_LEN];
 			sprintf_s(buf, BUF_LEN,
 			          "D%6d(%+6.1f) GR%1d (work+sleep=frame: %5.1fms + %5.1fms = %5.1fms). %3.0f%% of target %5lldms, %7s %7s %4s.\n",
-			          (int)fallout4->getShadowDirDistance(), momentum, fallout4->getVolumetricQuality(), currentWorkTime/1000.0f,
-			          sleepTime/1000.0f, totalFrameTime/1000.0f, load * 100, targetFrameTime/1000, fallout4->isMainMenu() ? "In Menu" : "",
+			          (int)fallout4->getShadowDirDistance(), momentum, fallout4->getVolumetricQuality(),
+			          workTimeAverage / 1000.0f,
+			          sleepTime / 1000.0f, totalFrameTime / 1000.0f, load * 100, targetFrameTime / 1000,
+			          fallout4->isMainMenu() ? "In Menu" : "",
 			          fallout4->isGamePaused() != 0 ? "Paused" : "Running", fallout4->isGameLoading() != 0 ? "Load" : "");
 			console.print(buf);
 			nextDebugTime = Clock.currentMicrosecond() + debugMessageDelay;
@@ -235,16 +292,20 @@ public:
 	}
 };
 
-
 std::unique_ptr<AdvancedController> make_controller(std::string configFile, std::shared_ptr<Fallout4> fallout4)
 {
 	auto configPath = configFile.c_str();
 	auto fTargetFPS = GetPrivateProfileFloatA("Simple", "fTargetFPS", 60.0, configPath);
 	auto bCapFramerate = GetPrivateProfileIntA("Simple", "bCapFramerate", TRUE, configPath);
 	auto fTargetLoad = GetPrivateProfileFloatA("Simple", "fTargetLoad", 98, configPath);
-	auto fShadowDirDistanceMin = max(0.0f, GetPrivateProfileFloatA("Simple", "fShadowDirDistanceMin", 2500.0f, configPath));
-	auto fShadowDirDistanceMax = max(0.0f, GetPrivateProfileFloatA("Simple", "fShadowDirDistanceMax", 12000.0f, configPath));
-
+	auto fShadowDirDistanceMin = max(0.0f, GetPrivateProfileFloatA("Simple", "fShadowDirDistanceMin", 2500.0f, configPath)
+	);
+	auto fShadowDirDistanceMax = max(0.0f, GetPrivateProfileFloatA("Simple", "fShadowDirDistanceMax", 12000.0f, configPath)
+	);
+	auto fMomentumDownAcceleration = abs(GetPrivateProfileFloatA("Simple", "fMomentumDownAcceleration", 1.1, configPath));
+	auto fMinMomentum = -abs(GetPrivateProfileFloatA("Simple", "fMinMomentum", 1000.0f, configPath));
+	auto fMomentumUpAcceleration = abs(GetPrivateProfileFloatA("Simple", "fMomentumDownAcceleration", 1.025, configPath));;
+	auto fMaxMomentum = abs(GetPrivateProfileFloatA("Simple", "fMinMomentum", 500.0f, configPath));
 	auto bAdjustGRQuality = GetPrivateProfileIntA("Simple", "bAdjustGRQuality", TRUE, configPath);
 	auto bShowDiagnostics = GetPrivateProfileIntA("Advanced", "bShowDiagnostics", FALSE, configPath);
 	float fGRQualityShadowDist[3];
@@ -267,6 +328,8 @@ std::unique_ptr<AdvancedController> make_controller(std::string configFile, std:
 			<< "  Target Load:           " << fTargetLoad << std::endl
 			<< "  Load Screen:           " << (bLoadCapping ? "Normal" : "Accelerated") << std::endl
 			<< "  Shadow Distance Range: (" << fShadowDirDistanceMax << " to " << fShadowDirDistanceMax << ")" << std::endl
+			<< "  Shadow Momentum Range: (" << fMinMomentum << " to " << fMaxMomentum << ")" << std::endl
+			<< "  Momentum Accelaration: (" << fMomentumDownAcceleration << " downward, " << fMomentumUpAcceleration << " upward)" << std::endl
 			<< "  Godray Quality:        " << (bAdjustGRQuality ? "Adjusting" : "Constant") << std::endl;
 
 		if (bAdjustGRQuality)
@@ -279,12 +342,16 @@ std::unique_ptr<AdvancedController> make_controller(std::string configFile, std:
 		console.print(details.str());
 	}
 
-	return std::make_unique<AdvancedController>(fallout4, bLoadCapping != FALSE, bUsePreciseCapping != FALSE, bCapFramerate != FALSE, microsecond_t(micros / fTargetFPS),
+	return std::make_unique<AdvancedController>(fallout4, bLoadCapping != FALSE, bUsePreciseCapping != FALSE,
+	                                            bCapFramerate != FALSE, microsecond_t(micros / fTargetFPS),
 	                                            fShadowDirDistanceMin, fShadowDirDistanceMax, fTargetLoad / 100.0f,
-	                                            bAdjustGRQuality != FALSE, fGRQualityShadowDist, bShowDiagnostics != FALSE);
+	                                            fMomentumDownAcceleration, fMinMomentum, fMomentumUpAcceleration,
+	                                            fMaxMomentum, bAdjustGRQuality != FALSE, fGRQualityShadowDist,
+	                                            bShowDiagnostics != FALSE);
 }
 
-Controller::Controller(std::string configPath, std::shared_ptr<Fallout4> fallout4) : controllerImpl(make_controller(configPath, fallout4))
+Controller::Controller(std::string configPath, std::shared_ptr<Fallout4> fallout4) : controllerImpl(
+	make_controller(configPath, fallout4))
 {
 }
 

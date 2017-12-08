@@ -26,6 +26,7 @@ public:
 	bool isGamePaused() const;
 	bool isGameLoading() const;
 	bool isMainMenu() const;
+	bool loadedSuccessfully() const;
 };
 
 #endif // __FALLOUT_H__

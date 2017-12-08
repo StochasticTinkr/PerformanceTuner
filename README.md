@@ -4,6 +4,10 @@ Based originally on xwise dynamic performance tuner.  Mostly rewritten, and upgr
 Built with Visual Studio 2015
 
 ## Change Log
+* 0.9.3 (Supports arbitray Fallout 4 versions, with additional ini files for the version)
+  * Added configuration to manage how fast the shadow dir distance changes. See "momentum" in settings.
+* 0.9.2 (Supports arbitray Fallout 4 versions, with additional ini files for the version)
+  * Moved the addresses out of the dll, into separate version-specific ini files.
 * 0.9.1 (Supports Fallout 4 1.10.40)
   * Update README to include license and settings explanation
   * Add support for "bCapFramerate" and "bAdjustGRQuality" settings. (They were always enabled)
@@ -33,7 +37,23 @@ This is an example of the ini file. The performance tuner will look for a while 
     ; The shadow distance is adjusted (within the bounds below) so that 
     ; "targetFrameTime * fTargetLoad/100 = game engine work time"
     fTargetLoad=98.0 
-    
+
+	; The Momentum is how fast the shadow distance is changing, either up or down.  If the current frame-time is higher than the 
+	; target frame time (eg, the load is too high), the momentum starts in the negative direction, accerating until it reaches the minumum momentum value.
+	; If, instead, the current frame-time is lower (the load can increase), we start the momentum in the positive direction, accerating until it goes until
+	; it reaches the maximum value.
+	; Either way, if the current frame time crosses over the target frame time, the momentum is reset in the proper direction.
+
+	; Accelerate at 10% every time we're continuing downward.
+	fMomentumDownAcceleration=1.1 
+	; Never go faster than 1000/frame downward.
+	fMinMomentum=-1000 
+
+	; Accelerate at 2.5% ever time we're continuing upward.
+	fMomentumUpAcceleration=1.025
+	; Never go faster than 500/frame upward.
+	fMaxMomentum=500
+	    
     ; fShadowDirDistance Min/Max set limits on what Performance Tuner will set shadow distance to.   
     fShadowDirDistanceMin=2500  
     fShadowDirDistanceMax=12000 
@@ -61,6 +81,48 @@ This is an example of the ini file. The performance tuner will look for a while 
     ; F4SE and some plugins for it will also output to the console if it is enabled
     ; If you use this, I recommend either having a second monitor, or using Borderless mode, so that you can look at it.
     bShowDiagnostics=0
+
+## Memory Addresses and Fallout 4 versions.
+The reason a mod like this breaks whenever Bethesda updates Fallout4.exe is that the memory locations of the variables this mod uses
+can be different.
+
+To help mitigate this, and to give users the ability to fix this themselves without recompiling the DLL, I've moved the addresses into ini files.
+
+This mod will look at the Fallout4.exe version information, and then look for a corresponding ini file.  The ini files must be named "fallout4-addresses-w.x.y.z.ini".
+where w.x.y.z is replaced by the version number.  For example, for Fallout 4 version 1.10.40, the file should be called "fallout4-addresses-1.10.40.0.ini".
+
+If it is unable to find that file, it will open a console and tell you which file it was actually looking for. 
+
+### Contents of the addresses ini file
+Here is the example fallout4-addresses-1.10.50.0.ini
+
+	[Addresses]
+	fShadowDirDistance=6769A1C
+	iVolumetricQuality=3901FD8
+	bGameUpdatePaused=5A9F000
+	bIsMainMenu=5B473A8
+	bIsLoading=5AF3E4C
+
+### Create a new ini file yourself
+I use "CheatEngine" to help me find the locations for these settings.  I told CheatEngine to automatically attach to Fallout4.exe whenever 
+it is running, to make it simpler to do the following. I also configure Fallout 4 to use Borderless mode, and set bAlwaysActive=1, to prevent 
+the game pausing when I alt-tab to CheatEngine.
+
+For fShadowDirDistance address, I update the "fDirShadowDistance" value to something arbitrary, such as 3512 and start FO4.  I load a save and then
+scan for that value as a first scan. Make sure to select "Float".  Quit the game, change the fDirShadowDistance to another arbitrary value.  Restart the game
+and scan for the new value.  Repeat until there are < 10 values. Add these values to the address list, in CheatEngine, and try changing them to 0, until
+you see the shadows disappear.  Label that one "Shadow Dir Distance" and delete the others.
+
+For iVolumetricQuality, its a lot easier.  In the game, use the console to set the godray quality to arbitrary values; 'gr quality 3143' and scan. This value is an integer, use "4 byte" for the type.
+Change the quality setting and rescan until you have exactly one address.  Add this to the CheatEngine address list, and change label it "Godray quality".
+
+bIsLoading, bGameUpdatePaused, and bIsMainMenu are a little harder, but basically the same.  Search for a 4-byte value of either 0 or 1, when it is in that state. for example,
+fast travel, search for 1 while the loading screen is on, and then once you've arrived, search for 0.  Do this until you find a suitable address. 
+There may be more than one.
+
+Once you've found all the addresses, save your address list.  CheatEngine will create a .ct file, which will contain the offsets (eg. Fallout4.exe+6769A1C). Use the value 
+after the + sign for the addresses ini file. 
+
     
 ## Contributing
 Features, enhancements, and bug-fixes are welcome.  Please match the current coding style.  If you do open a pull-request,
