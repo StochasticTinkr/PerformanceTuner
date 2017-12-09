@@ -4,12 +4,12 @@ Based originally on xwise dynamic performance tuner.  Mostly rewritten, and upgr
 Built with Visual Studio 2015
 
 ## Change Log
-* 0.9.4 (Supports arbitray Fallout 4 versions, with additional ini files for the version)
+* 0.9.4 (Supports arbitrary Fallout 4 versions, with additional ini files for the version)
   * Added ability to configure V-Sync overrides, including separate ones for "paused" "loading".
   * BUGFIX: Copy and paste error with settings the new settings names for momentum. You should be able to set them now.
-* 0.9.3 (Supports arbitray Fallout 4 versions, with additional ini files for the version)
+* 0.9.3 (Supports arbitrary Fallout 4 versions, with additional ini files for the version)
   * Added configuration to manage how fast the shadow dir distance changes. See "momentum" in settings.
-* 0.9.2 (Supports arbitray Fallout 4 versions, with additional ini files for the version)
+* 0.9.2 (Supports arbitrary Fallout 4 versions, with additional ini files for the version)
   * Moved the addresses out of the dll, into separate version-specific ini files.
 * 0.9.1 (Supports Fallout 4 1.10.40)
   * Update README to include license and settings explanation
