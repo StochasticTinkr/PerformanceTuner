@@ -12,11 +12,12 @@ class AdvancedController;
 class Controller
 {
 private:
-	std::unique_ptr<AdvancedController> controllerImpl;
+    std::unique_ptr<AdvancedController> controllerImpl;
 public:
-	Controller(std::string configPath, std::shared_ptr<Fallout4> fallout4);
-	~Controller();
-	void tick();
+    Controller(std::string configPath, std::shared_ptr<Fallout4> fallout4);
+    ~Controller();
+    void postPresent();
+    void prePresent(UINT &SyncInterval, UINT &Flags);
 };
 
 #endif // __CONTROLLER_H__

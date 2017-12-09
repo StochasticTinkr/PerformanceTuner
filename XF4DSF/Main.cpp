@@ -1,5 +1,4 @@
 #include <dxgi.h>
-#include <Psapi.h>
 
 #include "Includes.h"
 #include "Controller.h"
@@ -62,11 +61,15 @@ typedef HRESULT(__stdcall *PresentPtr)(IDXGISwapChain* pThis,
 CreateSwapChainPtr CreateSwapChain_original;
 PresentPtr Present_original;
 
-HRESULT __stdcall Hooked_IDXGISwapChain_Present(IDXGISwapChain* pThis, UINT a, UINT b) {
+HRESULT __stdcall Hooked_IDXGISwapChain_Present(IDXGISwapChain* pThis, UINT SyncInterval, UINT Flags) {
 	//MessageBox(NULL, _T("Hooked_IDXGISwapChain_Present"), _T("dxgi.dll"), NULL);
-	HRESULT hr = Present_original(pThis, a, b);
+    if (controller.get())
+    {
+        controller->prePresent(SyncInterval, Flags);
+    }
+	HRESULT hr = Present_original(pThis, SyncInterval, Flags);
 	if (controller.get()) {
-		controller->tick();
+		controller->postPresent();
 	}
 	return hr;
 }

@@ -4,6 +4,9 @@ Based originally on xwise dynamic performance tuner.  Mostly rewritten, and upgr
 Built with Visual Studio 2015
 
 ## Change Log
+* 0.9.4 (Supports arbitray Fallout 4 versions, with additional ini files for the version)
+  * Added ability to configure V-Sync overrides, including separate ones for "paused" "loading".
+  * BUGFIX: Copy and paste error with settings the new settings names for momentum. You should be able to set them now.
 * 0.9.3 (Supports arbitray Fallout 4 versions, with additional ini files for the version)
   * Added configuration to manage how fast the shadow dir distance changes. See "momentum" in settings.
 * 0.9.2 (Supports arbitray Fallout 4 versions, with additional ini files for the version)
@@ -71,7 +74,22 @@ This is an example of the ini file. The performance tuner will look for a while 
     ; Disabling FPS cap during load can speed up load times. 
     ; Works best if you don't use vsync, or set it to "Fast" in Nvidia Control Panel. 
     bLoadCapping=0 
+
+    ; You can override the V-Sync behavior.  -1 means to use the default value from FO4's config, 0 means disable, and 1 means enable.
+    ; You can use different settings for the override during load and paused states as well.
+
+    ; This setting controls the VSync override for non-loading and non-paused states.
+    ; Default's to -1.
+    iPresentIntervalOverride=-1
     
+    ; This setting controls the VSync override during loading screens.  
+    ; Defaults to 0 if you have bLoadCapping=0, or to the value of iPresentIntervalOverride otherwise.
+    iLoadingPresentIntervalOverride=0
+
+    ; This setting controls the vSync override during paused states (pipboy, menu, etc...)
+    ; Defaults to iPresentIntervalOverride.
+    iPausedPresentIntervalOverride=-1
+
     ; UsePreciseCapping determines whether to have a busy wait to sleep to the microsecond, or to just use 
     ; the built in millisecond sleep.  
     ; I recommend leaving this off, but expirement with it if you wish.
@@ -81,6 +99,10 @@ This is an example of the ini file. The performance tuner will look for a while 
     ; F4SE and some plugins for it will also output to the console if it is enabled
     ; If you use this, I recommend either having a second monitor, or using Borderless mode, so that you can look at it.
     bShowDiagnostics=0
+
+    ; When diagnostics is enabled, a debug message is dumped periodically. You can change the frequency of this setting. 
+    ; The higher the number, the more often per second the message shows.  You can also use partial number (eg, 0.5) to show less than once per second.
+    fDebugMessageFrequency=1
 
 ## Memory Addresses and Fallout 4 versions.
 The reason a mod like this breaks whenever Bethesda updates Fallout4.exe is that the memory locations of the variables this mod uses
