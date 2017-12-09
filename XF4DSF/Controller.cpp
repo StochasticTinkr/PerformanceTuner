@@ -304,8 +304,8 @@ std::unique_ptr<AdvancedController> make_controller(std::string configFile, std:
 	);
 	auto fMomentumDownAcceleration = abs(GetPrivateProfileFloatA("Simple", "fMomentumDownAcceleration", 1.1, configPath));
 	auto fMinMomentum = -abs(GetPrivateProfileFloatA("Simple", "fMinMomentum", 1000.0f, configPath));
-	auto fMomentumUpAcceleration = abs(GetPrivateProfileFloatA("Simple", "fMomentumDownAcceleration", 1.025, configPath));;
-	auto fMaxMomentum = abs(GetPrivateProfileFloatA("Simple", "fMinMomentum", 500.0f, configPath));
+	auto fMomentumUpAcceleration = abs(GetPrivateProfileFloatA("Simple", "fMomentumUpAcceleration", 1.025, configPath));;
+	auto fMaxMomentum = abs(GetPrivateProfileFloatA("Simple", "fMaxMomentum", 500.0f, configPath));
 	auto bAdjustGRQuality = GetPrivateProfileIntA("Simple", "bAdjustGRQuality", TRUE, configPath);
 	auto bShowDiagnostics = GetPrivateProfileIntA("Advanced", "bShowDiagnostics", FALSE, configPath);
 	float fGRQualityShadowDist[3];
