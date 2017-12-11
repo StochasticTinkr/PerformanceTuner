@@ -4,6 +4,9 @@ Based originally on xwise dynamic performance tuner.  Mostly rewritten, and upgr
 Built with Visual Studio 2015
 
 ## Change Log
+* 0.9.5 (Supports arbitrary Fallout 4 versions, with additional ini files for the version)
+  * "Work Time" doesn't include V-Sync time, or present time.
+  * Minor code clean-up.
 * 0.9.4 (Supports arbitrary Fallout 4 versions, with additional ini files for the version)
   * Added ability to configure V-Sync overrides, including separate ones for "paused" "loading".
   * BUGFIX: Copy and paste error with settings the new settings names for momentum. You should be able to set them now.

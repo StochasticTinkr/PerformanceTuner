@@ -11,7 +11,7 @@ namespace
 {
     const double micros = 1.0E6;
 
-    float GetPrivateProfileFloatA(LPCSTR lpAppName, LPCSTR lpKeyName, float defaultValue, LPCSTR lpFileName)
+    float GetPrivateProfileFloatA(const LPCSTR lpAppName, const LPCSTR lpKeyName, const float defaultValue, const LPCSTR lpFileName)
     {
         char result[256];
         const auto length = GetPrivateProfileStringA(lpAppName, lpKeyName, "", result, 256, lpFileName);
@@ -20,7 +20,7 @@ namespace
             return defaultValue;
         }
         _set_errno(0);
-        float parsed = float(atof(result));
+        const float parsed = float(atof(result));
         if (errno)
         {
             throw std::exception(
@@ -52,7 +52,7 @@ namespace
         int syncIntervalOverride;
     };
 
-    const char* GetVSyncString(int syncIntervalOverride)
+    const char* GetVSyncString(const int syncIntervalOverride)
     {
         return (syncIntervalOverride == -1 ? "Default" : syncIntervalOverride == 0 ? "Disabled" : "Enabled");
     }
@@ -115,15 +115,15 @@ public:
         return timeToMicros;
     }
 
-    microsecond_t currentMicrosecond()
+    microsecond_t currentMicrosecond() const
     {
         LARGE_INTEGER time;
         QueryPerformanceCounter(&time);
 
-        return (microsecond_t)(time.QuadPart * timeToMicros);
+        return microsecond_t(time.QuadPart * timeToMicros);
     }
 
-    void sleepUntil(microsecond_t time)
+    void sleepUntil(const microsecond_t time) const
     {
         const microsecond_t timeRemaining = time - currentMicrosecond();
         const millisecond_t sleepTimeInt = millisecond_t(timeRemaining / 1000);
@@ -134,7 +134,7 @@ public:
         Sleep(DWORD(sleepTimeInt));
     }
 
-    void preciseSleepUntil(microsecond_t time)
+    void preciseSleepUntil(const microsecond_t time) const
     {
         sleepUntil(time);
         while (currentMicrosecond() < time)
@@ -147,21 +147,24 @@ public:
 class AdvancedController
 {
 private:
-    std::shared_ptr<Fallout4> fallout4;
+    const std::shared_ptr<Fallout4> fallout4;
     const Config config;
     float momentum;
     float load;
     Average<float, 10> workTimeAverage;
 
     microsecond_t lastFrameStart;
+    microsecond_t workCompleted;
     microsecond_t nextDebugTime;
+    bool actualVSync;
+    bool requestedVSync;
 
-    bool shouldCap()
+    bool shouldCap() const
     {
         return config.capFramerate && (config.loadCapping || !fallout4->isGameLoading());
     }
 
-    bool shouldAdjust()
+    bool shouldAdjust() const
     {
         return !(fallout4->isMainMenu() || fallout4->isGamePaused() || fallout4->isGameLoading());
     }
@@ -200,7 +203,7 @@ private:
         }
     }
 
-    int getVolumetricQuality(float distance)
+    int getVolumetricQuality(const float distance) const
     {
         for (int i = 0; i < 3; ++i)
         {
@@ -212,37 +215,45 @@ private:
         return 3;
     }
 
-    bool shouldDisplayDebug()
+    bool shouldDisplayDebug() const
     {
         return config.showDiagnostics && nextDebugTime < lastFrameStart;
     }
 
-    int getSyncIntervalOverride()
+    int getSyncIntervalOverride() const
     {
         return
-            fallout4->isGameLoading() ? config.loadingSyncIntervalOverride
-            : fallout4->isGamePaused() ? config.pausedSyncIntervalOverride
-            : config.syncIntervalOverride;
+            fallout4->isGameLoading()
+                ? config.loadingSyncIntervalOverride
+                : fallout4->isGamePaused()
+                ? config.pausedSyncIntervalOverride
+                : config.syncIntervalOverride;
     }
 
 public:
-    AdvancedController(std::shared_ptr<Fallout4> fallout4, Config config) :
+    AdvancedController(const std::shared_ptr<Fallout4> &fallout4, const Config &config) :
         fallout4(fallout4),
         config(config),
         momentum(1),
         load(0),
-        lastFrameStart(0),
-        nextDebugTime(0)
+        lastFrameStart(0), 
+        workCompleted(0),
+        nextDebugTime(0), 
+        actualVSync(false)
     {
     }
 
     void prePresent(UINT& SyncInterval, UINT& Flags)
     {
+        requestedVSync = SyncInterval != 0;
+
         const int syncOverride = getSyncIntervalOverride();
         if (syncOverride >= 0)
         {
             SyncInterval = syncOverride;
         }
+        actualVSync = SyncInterval != 0;
+        workCompleted = Clock.currentMicrosecond();
     }
 
     void postPresent()
@@ -253,7 +264,6 @@ public:
             return;
         }
 
-        const microsecond_t workCompleted = Clock.currentMicrosecond();
         const microsecond_t currentWorkTime = workCompleted - lastFrameStart;
 
         workTimeAverage += float(currentWorkTime);
@@ -269,7 +279,7 @@ public:
 
         if (shouldCap())
         {
-            sleepTime = lastFrameStart + config.targetFrameTime - workCompleted;
+            sleepTime = lastFrameStart + config.targetFrameTime - Clock.currentMicrosecond();
             if (config.usePreciseSleep)
             {
                 Clock.preciseSleepUntil(lastFrameStart + config.targetFrameTime);
@@ -283,17 +293,16 @@ public:
         if (shouldDisplayDebug())
         {
             const microsecond_t totalFrameTime = Clock.currentMicrosecond() - lastFrameStart;
-            const int BUF_LEN = 256;
-            char buf[BUF_LEN];
-            sprintf_s(buf, BUF_LEN,
-                      "D%6d(%+7.1f) GR%1d (work+sleep=frame: %5.1fms + %5.1fms = %5.1fms). %3.0f%%, %7s %7s %4s VS=%8s.\n",
-                      (int)fallout4->getShadowDirDistance(), momentum, fallout4->getVolumetricQuality(),
+            char buf[256];
+            sprintf_s(buf, sizeof(buf),
+                      "%6d+=%+7.1f:V%d:%5.1fms + %5.1fms = %5.1fms:%3.0f%%:%5s:%4s:%4s %c %-7s\n dist +=momentm:gr:   work +   sleep =  frame :load:     :    :Game O Actual\r",
+                      int(fallout4->getShadowDirDistance()), momentum, fallout4->getVolumetricQuality(),
                       workTimeAverage / 1000.0f,
                       sleepTime / 1000.0f, totalFrameTime / 1000.0f, load * 100,
-                      fallout4->isMainMenu() ? "Menu" : "",
-                      fallout4->isGamePaused() != 0 ? "Paused" : "Running",
-                      fallout4->isGameLoading() != 0 ? "Load" : "", GetVSyncString(this->getSyncIntervalOverride())
-                      );
+                      fallout4->isGamePaused() != 0 ? "Pause" : "",
+                      fallout4->isGameLoading() != 0 ? "Load" : "",
+                      requestedVSync ? "Sync" : "None", getSyncIntervalOverride() < 0 ? '*' : ' ', actualVSync ? "Sync" : "None"
+            );
             console.print(buf);
             nextDebugTime = Clock.currentMicrosecond() + config.debugMessageDelay;
         }
@@ -302,7 +311,8 @@ public:
     }
 };
 
-std::unique_ptr<AdvancedController> make_controller(std::string configFile, std::shared_ptr<Fallout4> fallout4)
+std::unique_ptr<AdvancedController> make_controller(const std::string& configFile,
+                                                    const std::shared_ptr<Fallout4>& fallout4)
 {
     auto configPath = configFile.c_str();
     Config config;
@@ -313,21 +323,28 @@ std::unique_ptr<AdvancedController> make_controller(std::string configFile, std:
     config.targetLoad = targetLoadPercentage / 100;
     config.minDistance = max(0.0f, GetPrivateProfileFloatA("Simple", "fShadowDirDistanceMin", 2500.0f, configPath));
     config.maxDistance = max(0.0f, GetPrivateProfileFloatA("Simple", "fShadowDirDistanceMax", 12000.0f, configPath));
-    config.momentumDownAcceleration = abs(GetPrivateProfileFloatA("Simple", "fMomentumDownAcceleration", 1.1, configPath));
+    config.momentumDownAcceleration = abs(
+        GetPrivateProfileFloatA("Simple", "fMomentumDownAcceleration", 1.1, configPath));
     config.minMomentum = -abs(GetPrivateProfileFloatA("Simple", "fMinMomentum", 1000.0f, configPath));
-    config.momentumUpAcceleration = abs(GetPrivateProfileFloatA("Simple", "fMomentumUpAcceleration", 1.025, configPath));;
+    config.momentumUpAcceleration =
+        abs(GetPrivateProfileFloatA("Simple", "fMomentumUpAcceleration", 1.025, configPath));;
     config.maxMomentum = abs(GetPrivateProfileFloatA("Simple", "fMaxMomentum", 500.0f, configPath));
     config.adjustVolumetricQuality = GetPrivateProfileIntA("Simple", "bAdjustGRQuality", TRUE, configPath) != FALSE;
     config.showDiagnostics = GetPrivateProfileIntA("Advanced", "bShowDiagnostics", FALSE, configPath) != FALSE;
     config.columetricQualityDistances[0] = GetPrivateProfileFloatA("Simple", "fGRQualityShadowDist1", 3000, configPath);
     config.columetricQualityDistances[1] = GetPrivateProfileFloatA("Simple", "fGRQualityShadowDist2", 6000, configPath);
-    config.columetricQualityDistances[2] = GetPrivateProfileFloatA("Simple", "fGRQualityShadowDist3", 10000, configPath);
+    config.columetricQualityDistances[2] =
+        GetPrivateProfileFloatA("Simple", "fGRQualityShadowDist3", 10000, configPath);
     config.loadCapping = GetPrivateProfileIntA("Advanced", "bLoadCapping", FALSE, configPath) != FALSE;
     config.usePreciseSleep = GetPrivateProfileIntA("Advanced", "bUsePreciseCapping", FALSE, configPath) != FALSE;
-    config.debugMessageDelay = microsecond_t(micros / GetPrivateProfileFloatA("Advanced", "fDebugMessageFrequency", 1.0f, configPath));
+    config.debugMessageDelay = microsecond_t(
+        micros / GetPrivateProfileFloatA("Advanced", "fDebugMessageFrequency", 1.0f, configPath));
     config.syncIntervalOverride = GetPrivateProfileIntA("Advanced", "iPresentIntervalOverride", -1, configPath);
-    config.loadingSyncIntervalOverride = GetPrivateProfileIntA("Advanced", "iLoadingPresentIntervalOverride", config.loadCapping ? config.syncIntervalOverride : 0, configPath);
-    config.pausedSyncIntervalOverride = GetPrivateProfileIntA("Advanced", "iPausedPresentIntervalOverride", config.syncIntervalOverride, configPath);
+    config.loadingSyncIntervalOverride = GetPrivateProfileIntA("Advanced", "iLoadingPresentIntervalOverride",
+                                                               config.loadCapping ? config.syncIntervalOverride : 0,
+                                                               configPath);
+    config.pausedSyncIntervalOverride = GetPrivateProfileIntA("Advanced", "iPausedPresentIntervalOverride",
+                                                              config.syncIntervalOverride, configPath);
 
     if (config.showDiagnostics)
     {
@@ -362,8 +379,8 @@ std::unique_ptr<AdvancedController> make_controller(std::string configFile, std:
     return std::make_unique<AdvancedController>(fallout4, config);
 }
 
-Controller::Controller(std::string configPath, std::shared_ptr<Fallout4> fallout4) : controllerImpl(
-    make_controller(configPath, fallout4))
+Controller::Controller(const std::string& configPath, const std::shared_ptr<Fallout4>& fallout4)
+    : controllerImpl(make_controller(configPath, fallout4))
 {
 }
 
@@ -371,12 +388,12 @@ Controller::~Controller()
 {
 }
 
-void Controller::postPresent()
+void Controller::postPresent() const
 {
     controllerImpl->postPresent();
 }
 
-void Controller::prePresent(UINT& SyncInterval, UINT& Flags)
+void Controller::prePresent(UINT& SyncInterval, UINT& Flags) const
 {
     controllerImpl->prePresent(SyncInterval, Flags);
 }

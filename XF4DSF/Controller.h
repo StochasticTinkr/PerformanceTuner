@@ -12,12 +12,12 @@ class AdvancedController;
 class Controller
 {
 private:
-    std::unique_ptr<AdvancedController> controllerImpl;
+    const std::unique_ptr<AdvancedController> controllerImpl;
 public:
-    Controller(std::string configPath, std::shared_ptr<Fallout4> fallout4);
+    Controller(const std::string &configPath, const std::shared_ptr<Fallout4> &fallout4);
     ~Controller();
-    void postPresent();
-    void prePresent(UINT &SyncInterval, UINT &Flags);
+    void postPresent() const;
+    void prePresent(UINT &SyncInterval, UINT &Flags) const;
 };
 
 #endif // __CONTROLLER_H__
